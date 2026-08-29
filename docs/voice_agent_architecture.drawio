@@ -1,0 +1,320 @@
+<mxfile host="app.diagrams.net" agent="Claude" pages="2">
+  <diagram id="arch-main" name="1. Architecture (End-to-End)">
+    <mxGraphModel dx="1336" dy="1724" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#233044;" value="Voice Facility Agent — End-to-End Architecture" vertex="1">
+          <mxGeometry height="40" width="700" x="40" y="-10" as="geometry" />
+        </mxCell>
+        <mxCell id="userIn" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;arcSize=40;" value="&lt;b&gt;USER&lt;/b&gt;&lt;br&gt;(Voice Input)" vertex="1">
+          <mxGeometry height="50" width="300" x="380" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="stt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;voice/stt.py&lt;/b&gt; — Speech-to-Text&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;Whisper / Deepgram&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="300" x="380" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="session" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="&lt;b&gt;orchestration/session.py&lt;/b&gt;&lt;br&gt;Conversation State&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;loads conversation history + context&lt;/font&gt;" vertex="1">
+          <mxGeometry height="65" width="300" x="380" y="245" as="geometry" />
+        </mxCell>
+        <mxCell id="router" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" value="&lt;b&gt;orchestration/router.py&lt;/b&gt;&lt;br&gt;Intent / Routing Layer&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;LLM classifier · Pydantic AI structured output&lt;br&gt;→ RouteDecision&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="300" x="380" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="agentBand" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;dashed=1;verticalAlign=top;align=left;fontSize=11;fontColor=#8a6d1b;spacingLeft=6;spacingTop=2;" value="Agent Layer" vertex="1">
+          <mxGeometry height="110" width="1020" x="20" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="agRag" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;RAG Agent&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;agents/rag_agent.py&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="40" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="agData" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;Data Agent&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;agents/data_agent.py&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="240" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="agCombo" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;RAG + MCP Reasoning&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;combination of both&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="440" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="agAction" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;Action Agent&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;agents/action_agent.py&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="640" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="agGeneral" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" value="&lt;b&gt;General LLM&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;agents/general_agent.py&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="180" x="840" y="505" as="geometry" />
+        </mxCell>
+        <mxCell id="bkRetriever" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="&lt;b&gt;rag/retriever.py&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;semantic search&lt;br&gt;over Pinecone&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="40" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="bkMcpRead" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="&lt;b&gt;mcp_server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;read-only tools&lt;br&gt;(status, sensors, alerts…)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="240" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="bkBoth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="&lt;b&gt;rag/ + mcp_server&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;docs grounded on&lt;br&gt;live readings&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="440" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="bkConfirm" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#cc0000;strokeWidth=2;fontSize=12;dashed=1;" value="&lt;b&gt;orchestration/confirmation.py&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;HUMAN GATE — blocks until&lt;br&gt;the user says yes&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="640" y="640" as="geometry" />
+        </mxCell>
+        <mxCell id="bkWrite" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" value="&lt;b&gt;mcp_server/tools_action.py&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;create_service_request&lt;br&gt;update_service_request&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="180" x="640" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="orch" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=13;" value="&lt;b&gt;orchestration/orchestrator_agent.py&lt;/b&gt;&lt;br&gt;Top-level per-turn handler — autonomous&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;route → gather → gather more if implied → synthesize → propose confirmation if needed&lt;/font&gt;" vertex="1">
+          <mxGeometry height="80" width="700" x="180" y="890" as="geometry" />
+        </mxCell>
+        <mxCell id="synth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" value="&lt;b&gt;Response Synthesis&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;LLM grounded on all tool / RAG results&lt;br&gt;concise answer, cites sources if applicable&lt;/font&gt;" vertex="1">
+          <mxGeometry height="70" width="300" x="380" y="1010" as="geometry" />
+        </mxCell>
+        <mxCell id="tts" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" value="&lt;b&gt;voice/tts.py&lt;/b&gt; — Text-to-Speech&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;ElevenLabs / AWS Polly&lt;/font&gt;" vertex="1">
+          <mxGeometry height="55" width="300" x="380" y="1120" as="geometry" />
+        </mxCell>
+        <mxCell id="userOut" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;arcSize=40;" value="&lt;b&gt;USER&lt;/b&gt;&lt;br&gt;(Voice Output)" vertex="1">
+          <mxGeometry height="50" width="300" x="380" y="1215" as="geometry" />
+        </mxCell>
+        <mxCell id="infraTitle" parent="1" style="text;html=1;align=left;verticalAlign=middle;fontSize=14;fontStyle=1;fontColor=#555555;" value="Supporting Infrastructure" vertex="1">
+          <mxGeometry height="30" width="300" x="1090" y="460" as="geometry" />
+        </mxCell>
+        <mxCell id="pinecone" parent="1" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=15;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;verticalAlign=top;spacingTop=6;" value="&lt;b&gt;Pinecone Vector DB&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;rag/vector_store.py&lt;br&gt;&lt;br&gt;ingested via:&lt;br&gt;· rag/ingestion.py&lt;br&gt;· rag/web_scraper.py&lt;br&gt;(nectarit.com + synthetic docs)&lt;/font&gt;" vertex="1">
+          <mxGeometry height="180" width="300" x="1090" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="fastmcp" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;verticalAlign=top;spacingTop=8;" value="&lt;b&gt;FastMCP Server&lt;/b&gt; (mcp_server/)&lt;br&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;&lt;b&gt;Read tools&lt;/b&gt;&lt;br&gt;get_asset_details&lt;br&gt;get_asset_status&lt;br&gt;get_sensor_data&lt;br&gt;get_energy_consumption&lt;br&gt;get_active_alerts&lt;br&gt;get_asset_relationships&lt;br&gt;find_assets_by_location&lt;br&gt;&lt;br&gt;&lt;b&gt;Write tools (guarded)&lt;/b&gt;&lt;br&gt;create_service_request&lt;br&gt;update_service_request&lt;/font&gt;" vertex="1">
+          <mxGeometry height="290" width="300" x="1090" y="710" as="geometry" />
+        </mxCell>
+        <mxCell id="mockdata" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" value="&lt;b&gt;mock_facility_data.py&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;live facility data source&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="300" x="1090" y="1030" as="geometry" />
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="1" source="userIn" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" target="stt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="stt" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;fontSize=10;" target="session" value="raw transcript">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="session" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" target="router">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r1" edge="1" parent="1" source="router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="agRag" value="rag_docs">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r2" edge="1" parent="1" source="router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="agData" value="mcp_live_data">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r3" edge="1" parent="1" source="router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="agCombo" value="rag_mcp_reasoning">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r4" edge="1" parent="1" source="router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="agAction" value="mcp_action">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="r5" edge="1" parent="1" source="router" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="agGeneral" value="general">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b1" edge="1" parent="1" source="agRag" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="bkRetriever">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b2" edge="1" parent="1" source="agData" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="bkMcpRead">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b3" edge="1" parent="1" source="agCombo" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="bkBoth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b4" edge="1" parent="1" source="agAction" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;fontSize=10;" target="bkConfirm" value="proposes&#xa;recommendation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="b5" edge="1" parent="1" source="bkConfirm" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#cc0000;fontColor=#cc0000;fontSize=10;fontStyle=1;" target="bkWrite" value="ONLY after explicit&#xa;user confirmation">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o1" edge="1" parent="1" source="bkRetriever" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.06;entryY=0;entryDx=0;entryDy=0;" target="orch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o2" edge="1" parent="1" source="bkMcpRead" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" target="orch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o3" edge="1" parent="1" source="bkBoth" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" target="orch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o4" edge="1" parent="1" source="bkWrite" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8;entryY=0;entryDx=0;entryDy=0;" target="orch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="o5" edge="1" parent="1" source="agGeneral" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;" target="orch">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f1" edge="1" parent="1" source="orch" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" target="synth">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f2" edge="1" parent="1" source="synth" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" target="tts">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="f3" edge="1" parent="1" source="tts" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeWidth=2;" target="userOut">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="i1" edge="1" parent="1" source="bkRetriever" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#999999;" target="pinecone">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1050" y="680" />
+              <mxPoint x="1050" y="590" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="i2" edge="1" parent="1" source="bkMcpRead" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;strokeColor=#999999;" target="fastmcp">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1060" y="680" />
+              <mxPoint x="1060" y="797" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="bt77avIiWPzhsPfnIHlr-1" connectable="0" parent="i2" style="edgeLabel;html=1;align=center;verticalAlign=middle;resizable=0;points=[];" value="Text" vertex="1">
+          <mxGeometry relative="1" x="0.3741" y="1" as="geometry">
+            <mxPoint x="1" as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="i3" edge="1" parent="1" source="bkWrite" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.8;entryDx=0;entryDy=0;strokeColor=#999999;" target="fastmcp">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1070" y="800" />
+              <mxPoint x="1070" y="942" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="i4" edge="1" parent="1" source="fastmcp" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;dashed=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#999999;" target="mockdata">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="legend" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;align=left;verticalAlign=top;spacingLeft=8;spacingTop=6;fontSize=12;" value="&lt;b&gt;Legend&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;green = user turn&amp;nbsp; · &amp;nbsp;orange = voice I/O&amp;nbsp; · &amp;nbsp;blue = orchestration&lt;br&gt;purple = routing&amp;nbsp; · &amp;nbsp;yellow = agents&amp;nbsp; · &amp;nbsp;red = data / tool backends&lt;br&gt;grey dashed = supporting infrastructure&amp;nbsp; · &amp;nbsp;red dashed box = human-in-the-loop gate&lt;/font&gt;" vertex="1">
+          <mxGeometry height="100" width="300" x="40" y="1120" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+  <diagram id="walkthroughs" name="2. Walkthroughs">
+    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="1654" math="0" shadow="0">
+      <root>
+        <mxCell id="w0" />
+        <mxCell id="w1" parent="w0" />
+        <mxCell id="wtitle" value="Request Walkthroughs" style="text;html=1;align=left;verticalAlign=middle;fontSize=22;fontStyle=1;fontColor=#233044;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="10" width="600" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="w1title" value="Walkthrough 1 — single-tool live lookup" style="text;html=1;align=left;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#6c8ebf;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="60" width="420" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="a1" value="&lt;b&gt;User:&lt;/b&gt; &quot;What&#39;s the current status of Chiller-01?&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="100" width="380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a2" value="&lt;b&gt;1.&lt;/b&gt; router.route() → &lt;i&gt;mcp_live_data&lt;/i&gt;, high confidence&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;single specific live value; no docs or reasoning needed&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="180" width="380" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a3" value="&lt;b&gt;2.&lt;/b&gt; orchestrator_agent._handle_route&lt;br&gt;→ data_agent.answer_with_live_data" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="270" width="380" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a4" value="&lt;b&gt;3.&lt;/b&gt; Data agent (Pydantic AI + MCP tools) calls&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;get_asset_status(&quot;Chiller-01&quot;) over MCP&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="355" width="380" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a5" value="&lt;b&gt;4.&lt;/b&gt; MCP server resolves against mock_facility_data.py&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;→ {&quot;asset_id&quot;: &quot;CHILLER-01&quot;, &quot;status&quot;: &quot;warning&quot;}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="440" width="380" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="a6" value="&lt;b&gt;5.&lt;/b&gt; Data agent → natural sentence; orchestrator returns it" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="525" width="380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="a7" value="&lt;b&gt;6.&lt;/b&gt; voice/tts.py speaks the answer → &lt;b&gt;User&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="605" width="380" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="anote" value="Matches the brief:&#xa;User → LLM → MCP Tool → get_asset_status(&quot;Chiller-01&quot;)&#xa;→ Live Facility Data → LLM Reasoning → Voice Response" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;dashed=1;fontSize=11;align=left;spacingLeft=8;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="w1">
+          <mxGeometry x="40" y="685" width="380" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="ae1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a1" target="a2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a2" target="a3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a3" target="a4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a4" target="a5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a5" target="a6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ae6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="a6" target="a7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="w2title" value="Walkthrough 2 — full multi-step investigation" style="text;html=1;align=left;verticalAlign=middle;fontSize=15;fontStyle=1;fontColor=#b85450;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="60" width="480" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="c1" value="&lt;b&gt;User:&lt;/b&gt; &quot;The office on the third floor feels very hot.&lt;br&gt;Can you investigate and let me know if we need maintenance?&quot;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="100" width="440" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;b&gt;1.&lt;/b&gt; router.route() → &lt;i&gt;mcp_action&lt;/i&gt;, is_multi_step=True" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="185" width="440" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;b&gt;2.&lt;/b&gt; orchestrator_agent._handle_action_route → action_agent.investigate()" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="260" width="440" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="chain" value="&lt;b&gt;3. Action agent autonomously chains MCP read tools&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#d6b656;dashed=1;verticalAlign=top;align=center;fontSize=12;spacingTop=6;fontColor=#8a6d1b;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="335" width="440" height="330" as="geometry" />
+        </mxCell>
+        <mxCell id="c3a" value="find_assets_by_location(&quot;Building A&quot;, &quot;ahu&quot;)&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;→ resolves &quot;third floor&quot; to AHU-02&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="w1">
+          <mxGeometry x="540" y="370" width="400" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="c3b" value="get_asset_status(&quot;AHU-02&quot;) → &lt;b&gt;fault&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="w1">
+          <mxGeometry x="540" y="430" width="400" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="c3c" value="get_sensor_data(&quot;AHU-02&quot;) → &lt;b&gt;410 CFM&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;below the 650 CFM minimum (equipment_specifications.md)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="w1">
+          <mxGeometry x="540" y="480" width="400" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="c3d" value="get_active_alerts(&quot;AHU-02&quot;) → critical low-airflow alert" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="w1">
+          <mxGeometry x="540" y="540" width="400" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="c3e" value="get_asset_relationships(&quot;AHU-02&quot;) &lt;i&gt;(optional)&lt;/i&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;fed by Chiller-01 → rules out a chiller-side cause;&lt;br&gt;fault is local to the AHU&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=11;" vertex="1" parent="w1">
+          <mxGeometry x="540" y="590" width="400" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="cnote" value="Read-only MCP tools here — no RAG. In the rag_mcp_reasoning route (&quot;why did X happen&quot;) the orchestrator additionally pulls the matching RAG document and synthesizes it with the live findings — see _handle_route&#39;s RAG_MCP_REASONING branch." style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#cccccc;dashed=1;fontSize=10;align=left;spacingLeft=8;verticalAlign=middle;fontColor=#666666;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="680" width="440" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="c4" value="&lt;b&gt;4.&lt;/b&gt; Returns &lt;b&gt;ActionRecommendation&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;action_warranted=True · asset_id=&quot;AHU-02&quot;&lt;br&gt;findings (low-airflow fault) + proposed_summary for the ticket&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="765" width="440" height="65" as="geometry" />
+        </mxCell>
+        <mxCell id="c5" value="&lt;b&gt;5.&lt;/b&gt; orchestrator builds a &lt;b&gt;PendingConfirmation&lt;/b&gt; on session state and asks:&lt;br&gt;&lt;i&gt;&quot;AHU-02 shows a low airflow fault at 410 CFM against a 650 CFM minimum,&lt;br&gt;with an active critical alert. Would you like me to create a maintenance&lt;br&gt;request for AHU-02?&quot;&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcccc;strokeColor=#cc0000;strokeWidth=2;dashed=1;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="860" width="440" height="85" as="geometry" />
+        </mxCell>
+        <mxCell id="c6" value="&lt;b&gt;6.&lt;/b&gt; Next turn — &lt;b&gt;User:&lt;/b&gt; &quot;yes, please&quot;&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;confirmation.interpret_confirmation_reply → affirmative&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="975" width="440" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="c7" value="&lt;b&gt;7.&lt;/b&gt; confirmation.execute_confirmed_action&lt;br&gt;&lt;font style=&quot;font-size:11px;&quot;&gt;the ONLY call site of create_service_request in the codebase&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="1060" width="440" height="55" as="geometry" />
+        </mxCell>
+        <mxCell id="c8" value="&lt;b&gt;8.&lt;/b&gt; Orchestrator reports the created ticket ID back in speech → &lt;b&gt;User&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12;" vertex="1" parent="w1">
+          <mxGeometry x="520" y="1145" width="440" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="ce1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c1" target="c2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c2" target="c3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3" target="c3a">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3a" target="c3b">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3b" target="c3c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3c" target="c3d">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3d" target="c3e">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c3e" target="c4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c4" target="c5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce10" value="waits for the human" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#cc0000;fontColor=#cc0000;fontSize=10;" edge="1" parent="w1" source="c5" target="c6">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce11" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;strokeColor=#cc0000;" edge="1" parent="w1" source="c6" target="c7">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ce12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="w1" source="c7" target="c8">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
