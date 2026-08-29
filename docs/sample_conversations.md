@@ -1,6 +1,6 @@
 # Sample Conversations
 
-These transcripts are representative runs through `scripts/run_demo.py --text` (which calls `main.process_text_turn` → `orchestration.orchestrator_agent.handle_turn`, the same code path voice turns use downstream of transcription). The underlying tool responses shown are real output from this project's mock facility dataset and knowledge base (verified directly — see `docs/evaluation_results.md`); the exact LLM phrasing will vary slightly run to run since it depends on live model calls, which require an OpenAI API key to reproduce.
+These transcripts are representative runs through `scripts/run_demo.py --text` (which calls `main.process_text_turn` → `orchestration.orchestrator_agent.handle_turn`, the same code path voice turns use downstream of transcription). The underlying tool responses shown are real output from this project's mock facility dataset and knowledge base (verified directly — see `docs/evaluation_results.md`); the exact LLM phrasing will vary slightly run to run since it depends on live model calls.
 
 ## 1. Live data lookup (single tool call)
 
