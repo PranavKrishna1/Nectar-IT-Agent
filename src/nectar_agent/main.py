@@ -26,13 +26,7 @@ async def process_voice_turn(
 ) -> str:
     """Process one full voice turn: audio in -> agent response -> audio out.
 
-    Args:
-        session_id: Identifier for the ongoing conversation.
-        input_audio_path: Path to the recorded user audio for this turn.
-        output_audio_path: Path to write the synthesized response audio to.
-
-    Returns:
-        The agent's response text (also spoken to ``output_audio_path``).
+    Returns the agent's response text (also spoken to ``output_audio_path``).
     """
     user_text = transcribe(input_audio_path)
     response_text = await handle_turn(session_id, user_text)
@@ -47,13 +41,6 @@ async def process_text_turn(session_id: str, user_text: str) -> str:
     conversation via text is faster and doesn't require recorded audio
     fixtures, while still exercising the full router -> agents ->
     confirmation pipeline.
-
-    Args:
-        session_id: Identifier for the ongoing conversation.
-        user_text: The user's utterance as text.
-
-    Returns:
-        The agent's response text.
     """
     return await handle_turn(session_id, user_text)
 
@@ -65,13 +52,6 @@ async def process_voice_turn_live(session_id: str, sample_rate: int = 16000) -> 
     default microphone, transcribes it, runs it through the orchestrator,
     synthesizes the spoken reply, and plays it back through the default
     speaker output. Temp audio files are cleaned up afterwards.
-
-    Args:
-        session_id: Identifier for the ongoing conversation.
-        sample_rate: Microphone capture sample rate in Hz.
-
-    Returns:
-        The agent's response text (also spoken aloud).
     """
     input_path = record_from_microphone(sample_rate)
     try:

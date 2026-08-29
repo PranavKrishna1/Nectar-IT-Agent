@@ -47,14 +47,8 @@ synthesize it into plain language.
 def _get_synthesis_agent() -> Agent:
     """Build (once) and return the reasoning agent used to combine RAG + live data.
 
-    Built lazily and cached (rather than at import time) since
-    ``Agent.__init__`` eagerly constructs its model client, which
-    requires a valid API key to be present - see
-    ``orchestration/router.py`` for the same pattern and rationale.
-
-    Returns:
-        A tool-less Pydantic AI ``Agent`` used only for text synthesis
-        over context already gathered by other agents.
+    Built lazily rather than at import time - see
+    ``orchestration/router.py`` for why.
     """
     settings = get_settings()
     return Agent(settings.llm_model_reasoning, system_prompt=_SYNTHESIS_SYSTEM_PROMPT)
@@ -63,15 +57,9 @@ def _get_synthesis_agent() -> Agent:
 async def _handle_pending_confirmation(session_id: str, user_text: str) -> str | None:
     """Check for and resolve a confirmation the previous turn is waiting on.
 
-    Args:
-        session_id: Current session ID.
-        user_text: The user's current turn text, expected to be a
-            yes/no reply to a previously asked confirmation question.
-
-    Returns:
-        The response text if a pending confirmation was resolved this
-        turn, or ``None`` if there was nothing pending (in which case
-        the caller should proceed with normal routing).
+    Returns the response text if a pending confirmation was resolved this
+    turn, or ``None`` if there was nothing pending (in which case the
+    caller should proceed with normal routing).
     """
     state = session_store.get_or_create(session_id)
     pending = state.pending_confirmation
@@ -99,17 +87,10 @@ async def _handle_route(
 ) -> tuple[str, PendingConfirmation | None]:
     """Dispatch a routed query to the appropriate sub-agent(s).
 
-    Args:
-        route_decision: The router's decision for this query.
-        query: The user's current query text.
-        conversation_history: Recent transcript, for routes that benefit
-            from conversational context.
-
-    Returns:
-        A ``(response_text, pending_confirmation)`` tuple. ``pending_
-        confirmation`` is non-``None`` only when the action route
-        determined a maintenance request should be proposed; the caller
-        is responsible for attaching it to session state.
+    Returns a ``(response_text, pending_confirmation)`` tuple.
+    ``pending_confirmation`` is non-``None`` only when the action route
+    determined a maintenance request should be proposed; the caller is
+    responsible for attaching it to session state.
     """
     if route_decision.route == RouteType.CLARIFY:
         return (
@@ -147,17 +128,13 @@ async def _handle_route(
 async def _handle_action_route(query: str) -> tuple[str, PendingConfirmation | None]:
     """Investigate a potential facility issue and propose action if needed.
 
-    Args:
-        query: The user's request, e.g. "create a maintenance request
-            for AHU-02" or "investigate and let me know if we need
-            maintenance."
-
-    Returns:
-        A ``(response_text, pending_confirmation)`` tuple. If no action
-        is warranted, ``pending_confirmation`` is ``None`` and the text
-        is a findings-only response. Otherwise the text is a
-        confirmation question and ``pending_confirmation`` describes the
-        exact tool call to run if the user says yes.
+    ``query`` is the user's request, e.g. "create a maintenance request
+    for AHU-02" or "investigate and let me know if we need maintenance."
+    Returns a ``(response_text, pending_confirmation)`` tuple. If no
+    action is warranted, ``pending_confirmation`` is ``None`` and the
+    text is a findings-only response. Otherwise the text is a
+    confirmation question and ``pending_confirmation`` describes the
+    exact tool call to run if the user says yes.
     """
     recommendation = await action_agent.investigate(query)
     if not recommendation.action_warranted or not recommendation.asset_id:
@@ -187,15 +164,8 @@ async def handle_turn(session_id: str, user_text: str) -> str:
     sub-agent(s), chaining RAG + live data when the route calls for it,
     (3) turns an action recommendation into a held confirmation rather
     than executing anything, and (4) records both turns to session
-    history before returning.
-
-    Args:
-        session_id: Identifier for the ongoing voice conversation.
-        user_text: The transcribed user utterance for this turn.
-
-    Returns:
-        The agent's natural-language response text, ready to be passed
-        to ``voice.tts.synthesize``.
+    history before returning the response text, ready to be passed to
+    ``voice.tts.synthesize``.
     """
     session_store.record_user_turn(session_id, user_text)
     state = session_store.get_or_create(session_id)

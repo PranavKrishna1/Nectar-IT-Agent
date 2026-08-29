@@ -25,13 +25,6 @@ from nectar_agent.config import get_settings
 def transcribe(audio_path: str | Path) -> str:
     """Transcribe an audio file to text using the configured STT provider.
 
-    Args:
-        audio_path: Path to the audio file to transcribe (e.g. a WAV
-            recording of the facility operator's voice input).
-
-    Returns:
-        The transcribed text.
-
     Raises:
         ValueError: If ``settings.stt_provider`` is not a supported value.
     """
@@ -53,12 +46,6 @@ def _transcribe_faster_whisper(audio_path: str | Path) -> str:
     once the model is cached. The model is downloaded automatically on
     first use (roughly 75 MB for "base", larger for bigger sizes) and
     cached under the user's Hugging Face cache directory thereafter.
-
-    Args:
-        audio_path: Path to the audio file.
-
-    Returns:
-        The transcribed text, with leading/trailing whitespace stripped.
     """
     from faster_whisper import WhisperModel
 
@@ -74,14 +61,8 @@ def _get_faster_whisper_model(model_size: str):
 
     Model loading is expensive (hundreds of milliseconds to seconds), so
     the instance is cached per model size for the life of the process
-    rather than reloaded on every transcription.
-
-    Args:
-        model_size: Model size identifier, e.g. "base" or "small".
-
-    Returns:
-        A loaded ``WhisperModel`` running on CPU with int8 quantization,
-        which is the most portable configuration (no GPU required).
+    rather than reloaded on every transcription. Runs on CPU with int8
+    quantization, the most portable configuration (no GPU required).
     """
     from faster_whisper import WhisperModel
 
@@ -89,14 +70,7 @@ def _get_faster_whisper_model(model_size: str):
 
 
 def _transcribe_whisper(audio_path: str | Path) -> str:
-    """Transcribe audio using OpenAI's Whisper transcription endpoint.
-
-    Args:
-        audio_path: Path to the audio file.
-
-    Returns:
-        The transcribed text.
-    """
+    """Transcribe audio using OpenAI's Whisper transcription endpoint."""
     from openai import OpenAI
 
     settings = get_settings()
@@ -112,12 +86,6 @@ def _transcribe_deepgram(audio_path: str | Path) -> str:
     Implemented with a plain HTTP call (via ``httpx``) rather than the
     Deepgram SDK to avoid adding a second heavyweight dependency purely
     for the alternate-provider code path.
-
-    Args:
-        audio_path: Path to the audio file.
-
-    Returns:
-        The transcribed text.
     """
     import httpx
 

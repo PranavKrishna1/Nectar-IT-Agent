@@ -30,41 +30,14 @@ than guessing at facility data you were not given.
 def build_general_agent() -> Agent:
     """Build (once) and return the general-conversation fallback agent.
 
-    Built lazily and cached (rather than at import time) since
-    ``Agent.__init__`` eagerly constructs its model client, which
-    requires a valid API key to be present - see
-    ``orchestration/router.py`` for the same pattern and rationale.
-
-    Returns:
-        A tool-less Pydantic AI ``Agent`` for general conversation.
-
-    Raises:
-        RuntimeError: If the agent cannot be constructed (e.g. missing
-            or invalid API key for the configured model).
+    Built lazily rather than at import time - see
+    ``orchestration/router.py`` for why.
     """
-    try:
-        settings = get_settings()
-        return Agent(settings.llm_model_reasoning, system_prompt=GENERAL_SYSTEM_PROMPT)
-    except Exception as exc:
-        raise RuntimeError(f"Failed to build the general agent: {exc}") from exc
+    settings = get_settings()
+    return Agent(settings.llm_model_reasoning, system_prompt=GENERAL_SYSTEM_PROMPT)
 
 
 async def respond(query: str) -> str:
-    """Produce a general-conversation response.
-
-    Args:
-        query: The user's utterance.
-
-    Returns:
-        A short natural-language response.
-
-    Raises:
-        RuntimeError: If building the agent or running the query fails.
-    """
-    try:
-        result = await build_general_agent().run(query)
-        return result.output
-    except RuntimeError:
-        raise
-    except Exception as exc:
-        raise RuntimeError(f"General agent failed to respond: {exc}") from exc
+    """Produce a short general-conversation response."""
+    result = await build_general_agent().run(query)
+    return result.output

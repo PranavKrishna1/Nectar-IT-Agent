@@ -1,324 +1,483 @@
-# Nectar Autonomous Facility Operations Voice Agent
+# Nectar Voice Agent
 
-An autonomous voice AI agent for Nectar's Intelligent Facilities Platform. A facility operator speaks naturally; the agent transcribes the request, decides what it needs (documentation, live facility data, or both), reasons over multiple pieces of information, takes tool-mediated actions only after explicit confirmation, and replies in natural speech.
-
-Built for the Nectar AI Engineer — Agentic AI Challenge (Tasks 1–5).
+An autonomous voice AI agent for Nectar's Intelligent Facilities Platform. A facility
+operator speaks (or types) a request; the agent transcribes it, classifies intent, pulls
+whatever mix of live facility data and documentation the request needs, reasons over it,
+and — for anything that would change facility state — proposes the action and waits for
+an explicit "yes" before it ever writes anything.
 
 ## Table of contents
 
-1. [Technical stack](#technical-stack)
-2. [Setup](#setup)
-3. [Running it](#running-it)
-4. [Architecture](#architecture)
-5. [Folder structure](#folder-structure)
-6. [Data sources](#data-sources)
-7. [Agent workflow](#agent-workflow)
-8. [LLM routing strategy](#llm-routing-strategy)
-9. [RAG architecture](#rag-architecture)
-10. [MCP architecture](#mcp-architecture)
-11. [Safety: confirmation before action](#safety-confirmation-before-action)
-12. [Design decisions & assumptions](#design-decisions--assumptions)
-13. [Evaluation](#evaluation)
+1. [Architecture](#architecture)
+2. [Setup instructions](#setup-instructions)
+3. [Environment configuration](#environment-configuration)
+4. [Design decisions](#design-decisions)
+5. [Assumptions](#assumptions)
+6. [Agent workflow](#agent-workflow)
+7. [LLM routing strategy](#llm-routing-strategy)
+8. [RAG architecture](#rag-architecture)
+9. [MCP architecture](#mcp-architecture)
 
-## Technical stack
+---
 
-| Layer | Choice | Why |
-|---|---|---|
-| Agent framework | **Pydantic AI** | Typed, structured-output agents (`Agent[DepsType, OutputType]`) mean the router's decision, the RAG agent's answer, and the action agent's recommendation are all validated Pydantic models, not parsed free text. Native async, native MCP client support, and tool-calling via plain typed Python functions with docstrings (which Pydantic AI turns into the tool's schema/description automatically). Also provider-agnostic, which is what makes the free/paid model swap below a one-line config change. |
-| Tool server | **FastMCP** | The standard way to stand up an MCP-protocol tool server in Python with minimal boilerplate — a plain function plus `@mcp.tool()`/`mcp.tool()(func)` becomes a schema'd, discoverable MCP tool. Used to expose all facility read/action tools (Task 4). |
-| Vector database | **Pinecone** (serverless Starter) | Managed, no infrastructure to run locally, index-per-project is trivial to provision (`rag/vector_store.py` creates it on first ingestion run), a genuinely free tier, and its hosted Inference embeddings mean the same key covers both storage *and* embedding generation. |
-| LLM | **Google Gemini** (`gemini-2.0-flash`) by default; **OpenAI** (`gpt-4o-mini`/`gpt-4o`) as a swappable alternative | Gemini's free tier needs no credit card, which makes the project runnable by anyone cloning it. The router and reasoning models are separate config values specifically so a cheap model can handle routing and an expensive one the reasoning — see [LLM routing strategy](#llm-routing-strategy). Any Pydantic-AI-supported model string works. |
-| Embeddings | **Pinecone Inference** (`multilingual-e5-large`, 1024-dim) by default; **OpenAI** (`text-embedding-3-small`, 1536-dim) as an alternative | Reuses the Pinecone key, so the free setup needs no third signup. Selected via `EMBEDDING_PROVIDER`; `rag/embeddings.py` hides the difference behind `embed_texts`/`embed_query`. |
-| Speech-to-text | **faster-whisper** (local) by default; **Whisper API** and **Deepgram** as alternatives | The local backend runs Whisper on CPU via CTranslate2 with no key and no network, which keeps the free path fully self-contained. Whisper and Deepgram are both named in the brief and remain available via `STT_PROVIDER`. |
-| Text-to-speech | **edge-tts** by default; **ElevenLabs** and **AWS Polly** as alternatives | edge-tts uses Microsoft Edge's neural voices with no key or signup. Same swap pattern via `TTS_PROVIDER` and `voice/tts.py`. |
-| Web scraping | **httpx + BeautifulSoup** | Lightweight, no headless browser needed since the scraped pages (nectarit.com) are static marketing content. |
-| Testing | **pytest + pytest-asyncio** | Standard for this ecosystem; `asyncio_mode = "auto"` in `pyproject.toml` lets async test functions run without extra decorators. |
+## Architecture
 
-### Why Pydantic AI's `pydantic-ai==0.0.49` specifically
+### Component map
 
-Pydantic AI's public API for MCP integration has changed across releases. This project targets `0.0.49` deliberately because it has a simple, stable, well-documented MCP surface used throughout this codebase:
+Every arrow below is a real process or network boundary, not a suggestion. In particular,
+the agent that *investigates* a facility issue and the code that *writes* a service
+request are physically separate — different tool registries in different subprocesses —
+not just two different prompts.
 
-- `pydantic_ai.mcp.MCPServerStdio(command, args=[...], env={...})` — launches an MCP server as a subprocess.
-- `Agent(model, mcp_servers=[...])` — wires an agent to one or more MCP servers.
-- `async with agent.run_mcp_servers(): ...` — manages the MCP subprocess lifecycle around a run.
-- `Agent(model, result_type=SomeModel)` and `result.data` — structured output (later Pydantic AI releases renamed these to `output_type` / `result.output`; if you upgrade, update `agents/*.py` and `orchestration/router.py` accordingly — every place is commented).
+```mermaid
+flowchart TB
+    IN["main.py<br/>audio / text turn in"] -->|"transcribe() — STT"| ORC
 
-If you install a newer `pydantic-ai`, run `pip show pydantic-ai` and check `pydantic_ai.mcp` for `MCPServerStdio` vs. a toolset-based API before assuming this code runs unmodified.
+    subgraph ORCH["orchestration/"]
+        SESSION["session.py<br/>SessionStore"]
+        ORC["orchestrator_agent.py<br/>handle_turn()"]
+        ROUTER["router.py<br/>route()"]
+        CONFIRM["confirmation.py<br/>confirm-before-action gate"]
+        SESSION <--> ORC
+        ORC -->|"check pending first"| CONFIRM
+        ORC -->|"no pending → classify"| ROUTER
+    end
 
-## Setup
+    ROUTER --> RAG["agents/rag_agent.py"]
+    ROUTER --> DATA["agents/data_agent.py"]
+    ROUTER --> ACTION["agents/action_agent.py"]
+    ROUTER --> GENERAL["agents/general_agent.py"]
+
+    RAG --> RETRIEVER["retriever.py + reranker.py"]
+    RETRIEVER --> PINECONE[("vector_store.py<br/>Pinecone index")]
+    INGEST["ingestion.py + web_scraper.py<br/>offline batch ingest"] -.-> PINECONE
+
+    DATA --> MCPFULL["MCP client — stdio<br/>full tool registry"]
+    ACTION --> MCPRO["MCP client — stdio<br/>MCP_ALLOW_ACTIONS=false"]
+    MCPFULL --> MCPSRV["mcp_server/server.py<br/>FastMCP"]
+    MCPRO --> MCPSRV
+    MCPSRV --> MOCK[("mock_facility_data.py<br/>in-memory dataset")]
+
+    CONFIRM ==>|"user said 'yes' → direct call<br/>no LLM, no MCP"| TOOLSACTION["tools_action.py"]
+    TOOLSACTION ==> MOCK
+
+    ORC -->|"response text"| OUT["main.py<br/>synthesize() → spoken/text reply"]
+```
+
+Two agents each spawn their **own** `python -m nectar_agent.mcp_server.server`
+subprocess over stdio — they are not sharing a server. The action agent's subprocess is
+launched with `MCP_ALLOW_ACTIONS=false`, so `mcp_server/server.py` never registers
+`create_service_request` / `update_service_request` in that process at all. See
+[MCP architecture](#mcp-architecture) for why this matters.
+
+### Folder structure
+
+```
+nectar-voice-agent/
+├── README.md
+├── requirements.txt / pyproject.toml / .env.example
+├── docs/                      architecture, design decisions, sample conversations, evaluation
+├── data/knowledge_base/
+│   ├── web_sourced/            scraped from nectarit.com
+│   └── synthetic/               8 authored HVAC/chiller/AHU/safety/etc. documents
+├── src/nectar_agent/
+│   ├── config.py                central pydantic-settings configuration
+│   ├── main.py                  voice-turn entry point
+│   ├── voice/                   stt.py, tts.py, audio_utils.py
+│   ├── orchestration/           orchestrator_agent.py, router.py, session.py, confirmation.py
+│   ├── agents/                  rag_agent, data_agent, action_agent, general_agent
+│   ├── rag/                     web_scraper, ingestion, embeddings, vector_store,
+│   │                             retriever, reranker
+│   ├── mcp_server/               server.py, tools_read.py, tools_action.py,
+│   │                              mock_facility_data.py
+│   ├── models/                   routing.py, conversation.py, domain.py
+│   └── prompts/                  one system-prompt module per LLM-driven agent
+├── scripts/                      check_setup.py, ingest_knowledge_base.py, run_demo.py
+└── tests/                        36 tests across router, RAG, MCP tools, confirmation, e2e
+```
+
+---
+
+## Setup instructions
 
 ### Requirements
 
 - Python 3.11+
-- **Two free API keys** (neither requires a credit card) — see below
-
-### Free-tier setup (the default configuration)
-
-The project ships configured to run entirely on free tiers. You need exactly **two** keys:
-
-| # | Key | Where to get it | Free tier | Card needed? |
-|---|---|---|---|---|
-| 1 | `GEMINI_API_KEY` | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Generous daily request quota on Gemini Flash models | **No** |
-| 2 | `PINECONE_API_KEY` | [app.pinecone.io](https://app.pinecone.io) → Starter plan | 2 GB storage, 5 indexes, plus a monthly hosted-embedding allowance | **No** |
-
-Everything else has a working free default and needs **no key at all**:
-
-- **Embeddings** run on Pinecone's own hosted Inference models (`multilingual-e5-large`), reusing the Pinecone key you already have — so there's no third signup.
-- **Speech-to-text** runs Whisper locally via `faster-whisper` — no key, no network after the first model download (~75 MB for the `base` model).
-- **Text-to-speech** uses Microsoft Edge's neural voices via `edge-tts` — no key, no signup.
-
-**Step by step:**
-
-1. **Get the Gemini key.** Go to [aistudio.google.com/apikey](https://aistudio.google.com/apikey), sign in with a Google account, click *Create API key*. Copy it.
-2. **Get the Pinecone key.** Sign up at [app.pinecone.io](https://app.pinecone.io), choose the free **Starter** plan, then go to *API Keys* → *Create API key*. Copy it. Leave `PINECONE_REGION=us-east-1` — the free tier only supports that region.
-3. **Paste both into `.env`** (copy `.env.example` first). Only those two lines need filling in; every other value already has a working default.
-
-To use paid providers instead, set `OPENAI_API_KEY`, change `LLM_MODEL_ROUTER`/`LLM_MODEL_REASONING` to `openai:gpt-4o-mini`/`openai:gpt-4o`, and set `EMBEDDING_PROVIDER=openai` with `EMBEDDING_MODEL=text-embedding-3-small` and `EMBEDDING_DIMENSIONS=1536`. Note that changing embedding provider changes vector dimensionality, so you must delete and re-create the Pinecone index and re-run ingestion.
+- Two free API keys (neither needs a credit card) — see [Environment configuration](#environment-configuration)
 
 ### Install
 
 ```bash
 git clone <this-repo>
 cd nectar-voice-agent
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate        # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 cp .env.example .env
-# then edit .env and fill in OPENAI_API_KEY, PINECONE_API_KEY, etc.
+# edit .env and fill in GEMINI_API_KEY and PINECONE_API_KEY
 ```
 
-`requirements.txt` is fully version-pinned and was verified to install cleanly (`pip install -r requirements.txt`, zero conflicts) into a clean virtual environment as part of this submission. The pins exist for two reasons worth knowing about if you touch them: (1) `pydantic-ai==0.0.49` needs `fastmcp>=2.3.4` and an `mcp` release `>=1.8.1,<2.0.0` — going outside that band changes the MCP API surface, and (2) `pydantic-ai==0.0.49` imports OpenTelemetry's now-removed experimental Events API, so `opentelemetry-api`/`-sdk` are pinned to `1.28.0` specifically (a version still exposing `opentelemetry._events`) — installing this project's dependencies without that pin will resolve a newer OpenTelemetry release and fail at import time with `ModuleNotFoundError: No module named 'opentelemetry._events'`.
+`requirements.txt` targets `pydantic-ai>=2.35.3` and its current **toolset-based** MCP
+API (`pydantic_ai.mcp.MCPToolset` / `StdioTransport`, `Agent(toolsets=...)`,
+`result.output`). This is a hard requirement, not a style choice: the older
+`MCPServerStdio` / `Agent(mcp_servers=...)` / `result.data` surface from earlier
+`pydantic-ai` releases does not support Gemini's `thought_signature` tool-calling
+protocol and returns HTTP 400 on any multi-turn tool call — which is every turn
+`data_agent.py` and `action_agent.py` make. If you see that error, check
+`pip show pydantic-ai` and `pydantic_ai.mcp` before assuming the code is broken.
 
-### Check your setup first
-
-Before ingesting anything, verify your credentials actually work:
+### Verify credentials before ingesting anything
 
 ```bash
 python scripts/check_setup.py
 ```
 
-This confirms `.env` is found, both keys are present and well-formed, Pinecone authenticates, and your Gemini model still has daily quota left — and prints a specific fix for whatever fails. It costs one Gemini request. Run it any time something breaks; it catches most problems in a couple of seconds rather than partway through an ingestion run.
-
-### Troubleshooting
-
-**`401 Unauthorized` from Pinecone**
-The key is wrong, not the code. Almost always a copy-paste artifact — a duplicated leading character (`Ppcsk_...` instead of `pcsk_...`), wrapping quotes, or a trailing space. Pinecone keys start with `pcsk_`. `Settings` now validates this at load time and names the problem, so `python scripts/check_setup.py` will tell you directly. Re-copy the key from [app.pinecone.io](https://app.pinecone.io) → *API Keys*, paste the raw value with no quotes.
-
-**`429` / daily quota exhausted from Gemini**
-The key is valid; you've used up today's free requests. The usual cause is the model: **don't use `-latest` aliases** like `gemini-flash-latest`. They resolve to whatever is newest, and the newest preview models carry drastically lower free daily limits (as little as ~20 requests/day — one testing session). Pin an explicit stable Flash model instead:
-
-```dotenv
-LLM_MODEL_ROUTER=google-gla:gemini-2.0-flash
-LLM_MODEL_REASONING=google-gla:gemini-2.0-flash
-```
-
-Stable Flash models allow far more per day. Your actual live per-model limits are at [aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit). Other options: wait for the daily reset (midnight Pacific), or create a second free key under a different Google account.
-
-**`Index dimension mismatch`**
-Your Pinecone index was created with different dimensions than `EMBEDDING_DIMENSIONS`. This happens when switching embedding providers (Pinecone = 1024, OpenAI = 1536). Delete the index in the Pinecone console and re-run ingestion to recreate it at the right size. `check_setup.py` detects this before you hit it.
+Confirms `.env` is found, both keys are present and well-formed, Pinecone authenticates,
+and your Gemini model still has daily quota — and prints a specific fix for whatever
+fails. Costs one Gemini request.
 
 ### Ingest the knowledge base
 
-Before the RAG agent can answer anything, run the ingestion script once. This scrapes `nectarit.com`, chunks every document in both knowledge-base sources, embeds them, and upserts them into Pinecone (creating the index if it doesn't exist):
+The RAG agent has nothing to retrieve until this has run once:
 
 ```bash
 python scripts/ingest_knowledge_base.py
 ```
 
-Re-run it (with `--skip-scrape` if you don't want to re-hit the website) whenever documents under `data/knowledge_base/` change.
+Scrapes `nectarit.com`, chunks every document under `data/knowledge_base/` (both
+sources), embeds them, and upserts into Pinecone — creating the index if it doesn't
+exist yet. Re-run it (add `--skip-scrape` to skip re-hitting the website) whenever the
+documents change.
 
-## Running it
-
-**Text demo** (fastest way to exercise the whole pipeline without audio):
+### Run it
 
 ```bash
+# fastest way to exercise the full pipeline, no audio needed
 python scripts/run_demo.py --text
-```
 
-**Single-turn voice demo** (pre-recorded file in, audio file out):
+# single-turn: pre-recorded file in, audio file out
+python scripts/run_demo.py --voice --input recording.wav --output response.mp3
 
-```bash
-python scripts/run_demo.py --voice --input path/to/recording.wav --output response.mp3
-```
-
-**Live voice demo** (real microphone in, real speakers out — the fully spoken experience):
-
-```bash
+# fully spoken: real microphone in, real speakers out
 python scripts/run_demo.py --live
-```
 
-Press Enter, speak your request, press Enter again to stop recording; the agent transcribes it, runs the full routing/RAG/MCP/confirmation pipeline, and speaks its reply back through your default output device before prompting for the next turn. Ctrl+C exits. This mode needs two extra packages beyond the free-tier defaults — `sounddevice` (microphone capture and playback) and `miniaudio` (decodes the synthesized MP3 to raw audio in memory, no ffmpeg required) — both already in `requirements.txt`.
-
-**Run the MCP server standalone** (useful for inspecting tools with an MCP client, or via `mcp dev`):
-
-```bash
+# run the MCP server standalone (for inspection with an MCP client)
 python -m nectar_agent.mcp_server.server
-```
 
-**Run tests** (all 28 tests are self-contained — no API keys or network required, since LLM/MCP-dependent code is either factored into pure functions or monkeypatched in `tests/test_orchestrator_e2e.py`):
-
-```bash
+# tests — self-contained, no API keys or network required
 pytest -q
 ```
 
-## Architecture
+### Troubleshooting
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                              USER (Voice Input)                              │
-└───────────────────────────────────┬────────────────────────────────────────┘
-                                     ▼
-                         ┌───────────────────────┐
-                         │   voice/stt.py (STT)   │  Whisper / Deepgram
-                         └───────────┬───────────┘
-                                     ▼  (raw transcript)
-                         ┌───────────────────────────┐
-                         │ orchestration/session.py  │  loads conversation
-                         │  (Conversation State)     │  history + context
-                         └───────────┬───────────────┘
-                                     ▼
-                    ┌────────────────────────────────────┐
-                    │   orchestration/router.py           │
-                    │   Intent / Routing Layer            │
-                    │   (LLM-based classifier, Pydantic AI│
-                    │    structured output: RouteDecision)│
-                    └───────────────┬──────────────────────┘
-                                     │
-        ┌────────────┬──────────────┼───────────────┬───────────────┐
-        ▼            ▼              ▼               ▼               ▼
-   ┌─────────┐  ┌──────────┐  ┌───────────┐   ┌────────────┐  ┌───────────┐
-   │RAG Agent│  │Data Agent│  │RAG + MCP  │   │Action Agent│  │General LLM│
-   └────┬────┘  └────┬─────┘  │(combo)    │   └─────┬──────┘  └─────┬─────┘
-        ▼            ▼        └─────┬─────┘         ▼               │
-  ┌───────────┐ ┌──────────┐        ▼        ┌──────────────┐      │
-  │ rag/      │ │ mcp_     │  RAG + MCP  │  orchestration/│      │
-  │ retriever │ │ server   │  (both)     │  confirmation. │      │
-  │ (Pinecone)│ │ (read    │             │  py (gate      │      │
-  │           │ │  tools)  │             │  before write  │      │
-  └───────────┘ └──────────┘             │  tools fire)   │      │
-                                          │       ▼        │      │
-                                          │ mcp_server/    │      │
-                                          │ tools_action.py│      │
-                                          └────────┬───────┘      │
-                                     ▼              ▼              ▼
-                         ┌──────────────────────────────────────────────┐
-                         │  orchestration/orchestrator_agent.py           │
-                         │  Top-level autonomous per-turn handler:        │
-                         │  route → gather → gather more if needed →      │
-                         │  synthesize → (confirm if action proposed)     │
-                         └───────────────────────┬────────────────────────┘
-                                     ▼
-                         ┌───────────────────────┐
-                         │  voice/tts.py (TTS)    │  ElevenLabs / AWS Polly
-                         └───────────┬───────────┘
-                                     ▼
-                              USER (Voice Output)
-```
+**`401 Unauthorized` from Pinecone** — almost always a copy-paste artifact (a duplicated
+leading character, wrapping quotes, a trailing space). Pinecone keys start with `pcsk_`;
+`Settings` validates this at load time and names the exact problem.
 
-See `docs/architecture.md` for the annotated version of this diagram plus a walkthrough of the two worked examples from the brief (the single-tool "what's Chiller-01's status" case and the full 11-step "investigate and create a request if necessary" case).
+**`429` / daily quota exhausted from Gemini** — the key is valid, you've used today's free
+requests. Usually caused by a `-latest` model alias, which silently resolves to a preview
+model with a much lower daily limit. Pin an explicit stable model instead (see
+[Environment configuration](#environment-configuration)). Check live limits at
+[aistudio.google.com/rate-limit](https://aistudio.google.com/rate-limit).
 
-## Folder structure
+**`Index dimension mismatch`** — the Pinecone index was created with different dimensions
+than `EMBEDDING_DIMENSIONS`. Happens when switching embedding providers (Pinecone = 1024,
+OpenAI = 1536). Delete the index and re-run ingestion.
 
-```
-nectar-voice-agent/
-├── README.md
-├── requirements.txt / pyproject.toml / .env.example
-├── docs/                          architecture, design decisions, sample conversations, evaluation
-├── data/knowledge_base/
-│   ├── web_sourced/                scraped from nectarit.com
-│   └── synthetic/                  authored HVAC/chiller/AHU/safety/etc. documents
-├── src/nectar_agent/
-│   ├── config.py                   central pydantic-settings configuration
-│   ├── main.py                     voice-turn entry point
-│   ├── voice/                      STT + TTS wrappers                         (Task 1)
-│   ├── orchestration/              router, session, confirmation, orchestrator (Task 2 + 5)
-│   ├── agents/                     rag_agent, data_agent, action_agent, general_agent
-│   ├── rag/                        web_scraper, ingestion, embeddings, vector_store,
-│   │                                retriever, reranker                        (Task 3)
-│   ├── mcp_server/                 FastMCP server + read/action tools + mock data (Task 4)
-│   ├── models/                     shared Pydantic domain/routing/conversation models
-│   └── prompts/                    one system prompt module per agent
-├── scripts/                        ingest_knowledge_base.py, run_demo.py
-└── tests/                          28 tests across router, RAG, MCP tools, confirmation, e2e
-```
+---
 
-Full rationale for this split is in `docs/design_decisions.md`.
+## Environment configuration
 
-## Data sources
+All settings live in one `pydantic-settings` model (`src/nectar_agent/config.py`) so a
+missing or malformed value fails fast at startup instead of surfacing as a confusing
+error mid-conversation. Copy `.env.example` to `.env` and fill in the two required keys
+— everything else already has a working free-tier default.
 
-Two knowledge-base sources, both ingested by the same pipeline but tagged by origin (`source_type` metadata on every Pinecone vector):
+| Variable | Default | Purpose |
+|---|---|---|
+| `GEMINI_API_KEY` | *(required)* | Google AI Studio key — free, no card. Copied into `GEMINI_API_KEY` env for Pydantic AI's provider. |
+| `OPENAI_API_KEY` | *(blank)* | Only needed if `LLM_MODEL_*` or `EMBEDDING_PROVIDER` is switched to `openai:*`. |
+| `LLM_MODEL_ROUTER` | `google:gemini-3.5-flash` | Model used for intent classification — kept swappable independently of the reasoning model so a cheaper model can be pinned here. |
+| `LLM_MODEL_REASONING` | `google:gemini-3.5-flash` | Model used by the RAG, data, action, general, and synthesis agents. |
+| `PINECONE_API_KEY` | *(required)* | Pinecone key — free Starter plan, no card. |
+| `PINECONE_INDEX_NAME` | `nectar-facility-kb` | Vector index name; created automatically on first ingestion if missing. |
+| `PINECONE_CLOUD` / `PINECONE_REGION` | `aws` / `us-east-1` | Serverless spec. The free Starter tier only supports `us-east-1`. |
+| `EMBEDDING_PROVIDER` | `pinecone` | `pinecone` (hosted inference, reuses the Pinecone key) or `openai`. |
+| `EMBEDDING_MODEL` | `multilingual-e5-large` | Must match the provider — `text-embedding-3-small` for OpenAI. |
+| `EMBEDDING_DIMENSIONS` | `1024` | Must match the embedding model — `1536` for OpenAI's. Changing this requires re-creating the Pinecone index. |
+| `STT_PROVIDER` | `faster-whisper` | `faster-whisper` (local, free) / `whisper` (OpenAI API) / `deepgram`. |
+| `FASTER_WHISPER_MODEL` | `base` | `tiny` \| `base` \| `small` \| `medium` \| `large-v3`. |
+| `TTS_PROVIDER` | `edge-tts` | `edge-tts` (free) / `elevenlabs` / `aws`. |
+| `EDGE_TTS_VOICE` | `en-US-AriaNeural` | Voice name; `edge-tts --list-voices` lists options. |
+| `DEEPGRAM_API_KEY` / `ELEVENLABS_API_KEY` / `ELEVENLABS_VOICE_ID` | *(blank)* | Only needed for those specific providers. |
+| `RAG_TOP_K` | `5` | Chunks retrieved per query before reranking. |
+| `RAG_MIN_SIMILARITY` | `0.30` | Minimum cosine similarity for a chunk to count as relevant. |
+| `RAG_CHUNK_SIZE` / `RAG_CHUNK_OVERLAP` | `800` / `120` | Target characters per chunk and overlap between chunks. |
+| `ROUTER_MIN_CONFIDENCE` | `0.55` | Below this, the router's guess is overridden to `CLARIFY`. |
+| `ORCHESTRATOR_MAX_STEPS` | `8` | Hard cap on sub-agent/tool calls per turn. |
+| `REQUIRE_CONFIRMATION_FOR_ACTIONS` | `true` | Declared for future use — see [Assumptions](#assumptions); the confirmation gate is currently unconditional regardless of this flag. |
+| `NECTAR_WEBSITE_URL` | `https://www.nectarit.com/` | Root URL scraped for the web-sourced half of the knowledge base. |
+| `MCP_SERVER_HOST` / `MCP_SERVER_PORT` | `127.0.0.1` / `8765` | Only used when the MCP server is run with `MCP_TRANSPORT=http` instead of the default stdio. |
 
-1. **`data/knowledge_base/web_sourced/`** — scraped directly from **https://www.nectarit.com/** by `rag/web_scraper.py` (homepage + Solutions pages + About). This covers platform/product/company questions ("what protocols does the platform support", "what does Connected Buildings monitor").
-2. **`data/knowledge_base/synthetic/`** — eight authored documents matching the exact categories the brief specifies (HVAC operating procedures, chiller manual, AHU troubleshooting guide, maintenance procedures, safety instructions, equipment specifications, facility policies, troubleshooting FAQs). **This exists because nectarit.com is a marketing site, not a documentation portal** — it does not publish chiller fault codes, AHU airflow thresholds, or troubleshooting steps, so a website-only knowledge base cannot answer the brief's own example questions ("why did Chiller-01 fail?", "what should I check if AHU airflow is low?"). See `docs/design_decisions.md` for the full reasoning and what was found on the live site.
+`Settings` also validates key *shape* at load time (Pinecone keys must start with
+`pcsk_`, an OpenAI-shaped `sk-...` key pasted into `GEMINI_API_KEY` is rejected) so a
+copy-paste mistake fails immediately with a specific message instead of a mysterious 401
+three steps later.
 
-Run `python scripts/ingest_knowledge_base.py` to (re-)scrape and (re-)index both sources.
+---
+
+## Design decisions
+
+**Bounded, explicit orchestration instead of an open-ended planning loop.**
+`orchestrator_agent.handle_turn()` is hand-written control flow — route → gather →
+gather more if the route calls for it → synthesize → propose confirmation — rather than
+"let the LLM decide every next action in a loop until it stops." This keeps step count
+predictable (capped by `ORCHESTRATOR_MAX_STEPS`), keeps the confirmation gate impossible
+to route around by construction, and keeps the reasoning path auditable turn-by-turn. The
+trade-off: it can't discover a genuinely novel multi-hop investigation the fixed
+`RouteType` set doesn't anticipate. `RouteDecision.is_multi_step` is the seam where a more
+open-ended planner could be substituted later without touching the sub-agents.
+
+**The action agent cannot call write tools — not "is told not to."** An earlier design
+considered one MCP server exposing both read and write tools to every agent, relying on
+the action agent's prompt to never call the write ones. Rejected: a prompt is not a
+security boundary. Instead `mcp_server/server.py` reads `MCP_ALLOW_ACTIONS` from its
+process environment at import time and only registers the write tools when it isn't
+explicitly disabled; `agents/action_agent.py` launches its subprocess with
+`MCP_ALLOW_ACTIONS=false`. There is no code path by which that agent could call a write
+tool, regardless of what the model decides. See [MCP architecture](#mcp-architecture).
+
+**Two knowledge-base sources, tagged by origin.** `nectarit.com` is a marketing site —
+no chiller manuals, fault codes, or troubleshooting steps. A website-only knowledge base
+couldn't answer the kind of facility-technical question this agent exists for. So
+`data/knowledge_base/` has both a `web_sourced/` set (scraped, for platform/product
+questions) and a `synthetic/` set (eight authored technical documents — HVAC operating
+procedures, chiller manual, AHU troubleshooting, maintenance procedures, safety
+instructions, equipment specs, facility policies, troubleshooting FAQs), tagged
+`source_type` on every vector so answers can honestly cite which kind of source they
+came from.
+
+**Confirmation-reply interpretation is a keyword classifier, not an LLM call.**
+`confirmation.interpret_confirmation_reply()` is deliberately deterministic: the
+yes/no/ambiguous decision that gates a write action shouldn't depend on model behavior.
+It errs toward `None` (re-ask) on anything it doesn't recognize rather than guessing
+either way.
+
+**Reranking is lexical, not a cross-encoder.** `rag/reranker.py` boosts Pinecone's cosine
+similarity with a cheap word-overlap score and dedupes near-identical chunks. Kept
+dependency-light for this prototype; the function signature is written so a real
+reranker model could be dropped in without touching callers.
+
+**Router and reasoning models are separate config values even though they default to the
+same model.** `LLM_MODEL_ROUTER` and `LLM_MODEL_REASONING` are independently
+configurable specifically so a cheaper/faster model can be pinned to routing without
+touching the model every sub-agent reasons with — see
+[LLM routing strategy](#llm-routing-strategy).
+
+---
+
+## Assumptions
+
+- **In-memory session store and in-memory facility dataset.** `orchestration/session.py`
+  and `mcp_server/mock_facility_data.py` both reset on process restart and don't share
+  state across multiple server instances. Both sit behind small interfaces
+  (`SessionStore`, the plain-function tool layer) specifically so they can be swapped for
+  Redis/a database and a real BMS/SCADA/IoT gateway respectively without changing any
+  calling code.
+- **`REQUIRE_CONFIRMATION_FOR_ACTIONS` is declared but not yet read anywhere.** The
+  confirmation gate in `orchestration/confirmation.py` is unconditional today — every
+  `MCP_ACTION` recommendation becomes a `PendingConfirmation` regardless of this setting.
+  Treat the setting as reserved for a future "trusted automation" mode, not as something
+  that currently changes behavior.
+- **Single-process, single-machine deployment.** The MCP server is spawned as a stdio
+  subprocess per agent per process — there's no shared server across multiple app
+  instances, and no auth/network hardening on the optional HTTP transport
+  (`MCP_TRANSPORT=http`), since it isn't exposed publicly in this design.
+- **STT/TTS providers beyond the free defaults are wired but not exercised in automated
+  tests** (they require live keys and audio fixtures). The text-mode entry point
+  (`process_text_turn`) exercises every layer downstream of transcription identically to
+  the voice path, so it stands in for STT/TTS coverage in `pytest -q`.
+- **The knowledge base must be (re-)ingested manually.** There's no file-watcher or
+  startup check that the Pinecone index is populated — `scripts/ingest_knowledge_base.py`
+  is assumed to have been run at least once, and again after editing
+  `data/knowledge_base/`.
+
+---
 
 ## Agent workflow
 
-Per user turn, `orchestration/orchestrator_agent.handle_turn()`:
+Per user turn, `orchestration/orchestrator_agent.handle_turn()` runs the flow below.
+Every branch — a re-ask, a cancellation, a completed write, a clarifying question, or an
+agent's answer — converges back through the same two calls
+(`record_agent_turn` → return), so no path skips being recorded to session history.
 
-1. Records the turn to session history (`orchestration/session.py`).
-2. **Checks for a pending confirmation first.** If the previous turn proposed an action, this turn's text is interpreted as yes/no/ambiguous before anything else happens.
-3. Otherwise, **routes** the query (`orchestration/router.py`) using conversation history as context.
-4. **Dispatches** to the right sub-agent(s) based on the route — a RAG-only answer, a live-data answer, a combined RAG+MCP+reasoning synthesis, an investigation that may propose an action, or a general-conversation reply.
-5. If an action is warranted, the response becomes a confirmation question and the proposed action is attached to session state — **never executed**.
-6. Records the agent's turn and returns the response text for TTS.
+```mermaid
+flowchart TD
+    A["handle_turn(session_id, user_text)"] --> B["session_store.record_user_turn(text)"]
+    B --> C{"pending_confirmation<br/>set on session?"}
+
+    C -->|yes| D["confirmation.interpret_confirmation_reply(text)"]
+    D -->|ambiguous| D1["re-ask the question<br/>(don't guess)"]
+    D -->|no| D2["'Understood, I won't<br/>take that action'"]
+    D -->|yes| D3["execute_confirmed_action()"]
+    D3 --> D4["tools_action.py<br/>create/update_service_request()"]
+    D4 --> D5["'Done — request created<br/>for {description}'"]
+
+    C -->|no| E["router.route(query, history)<br/>→ RouteDecision"]
+    E --> F{"confidence ≥ 0.55?"}
+    F -->|below| F1["CLARIFY:<br/>ask which building / asset"]
+    F -->|meets| G{route type}
+
+    G -->|"RAG · DATA_AGENT ·<br/>MCP_LIVE_DATA · GENERAL_LLM"| G1["call one sub-agent<br/>→ return its answer"]
+    G -->|RAG_MCP_REASONING<br/>multi-step| G2["data_agent + rag_agent<br/>→ synthesis agent combines"]
+    G -->|MCP_ACTION| G3["action_agent.investigate()<br/>read-only tools"]
+    G3 --> H{"action_warranted &<br/>asset_id present?"}
+    H -->|no| H1["return findings only"]
+    H -->|yes| H2["propose action:<br/>hold PendingConfirmation"]
+
+    D1 & D2 & D5 & F1 & G1 & G2 & H1 & H2 --> Z["session_store.record_agent_turn(response)"]
+    Z --> ZZ["return response_text<br/>→ main.py → tts.synthesize()"]
+```
+
+The one thing worth noticing: even when `MCP_ACTION` decides `action_warranted=True`,
+this turn ends by **asking**, not by creating the ticket. The write only happens on a
+*later* turn, and only through the left-hand branch — `confirmation.py` is the sole path
+to `tools_action.py` anywhere in the codebase.
+
+---
 
 ## LLM routing strategy
 
-- A cheap/fast model (`gpt-4o-mini`) classifies intent into one of `rag`, `mcp_live_data`, `rag_mcp_reasoning`, `mcp_action`, `data_agent`, `general_llm`, or `clarify`, returning a structured `RouteDecision` (route, confidence, reasoning, flags) — never free text, so the orchestrator branches on it programmatically.
-- **Ambiguous requests**: if confidence is below `ROUTER_MIN_CONFIDENCE` (default 0.55), the decision is coerced to `clarify` regardless of the model's guess (`orchestration/router.py:enforce_confidence_threshold`), and the orchestrator asks a clarifying question instead of acting on a low-confidence guess.
-- **Incorrect routing** is caught two ways: (1) the confidence gate above prevents low-confidence misroutes from executing silently, and (2) sub-agents are scoped tightly enough (e.g. the RAG agent only has a retrieval tool, never live-data tools) that even a routing miss tends to fail loudly ("I don't have documentation covering that") rather than fabricating an answer from the wrong source.
-- **Tool failure**: every MCP tool function returns a typed `{"error": "..."}` dict rather than raising, so a failed/unknown lookup surfaces to the LLM as data it can reason about and report honestly, instead of crashing the turn.
-- **Cost/latency optimization**: routing uses the cheap model on every turn; the expensive reasoning model is only invoked for the specific sub-agent(s) the route actually calls for — a simple RAG or live-data lookup never pays for a `gpt-4o` call twice (once to route, once to answer) the way a single-model design would.
+`orchestration/router.py` runs a small, fast model (`LLM_MODEL_ROUTER`) on every turn to
+classify intent into a structured `RouteDecision` — never free text, so the orchestrator
+branches on it programmatically rather than parsing a guess:
+
+| Route | Destination | When |
+|---|---|---|
+| `rag` | RAG Agent | Documentation/"why"/"how" questions answerable from the knowledge base alone. |
+| `mcp_live_data` / `data_agent` | Data Agent | A live value or an aggregate/summary over live facility data. |
+| `rag_mcp_reasoning` | Data Agent + RAG Agent + synthesis agent | Needs both live data *and* documentation combined into one explanation. |
+| `mcp_action` | Action Agent | The user is asking for an investigation that may end in a maintenance decision. |
+| `general_llm` | General Agent | Small talk, greetings, anything not about facility operations. |
+| `clarify` | — | Router isn't confident enough to act on its own guess. |
+
+**Confidence gating.** `RouteDecision.confidence` (0–1) is checked against
+`ROUTER_MIN_CONFIDENCE` (default `0.55`) in `enforce_confidence_threshold()`. Below
+threshold, the decision is coerced to `clarify` regardless of what route the model
+guessed — the orchestrator asks a clarifying question instead of acting on a low-
+confidence guess.
+
+**Misrouting is contained, not just prevented.** Sub-agents are scoped tightly enough
+that even a routing miss tends to fail loudly rather than fabricate an answer: the RAG
+agent only has a retrieval tool (never live-data tools), so a misrouted live-data
+question surfaces as "I don't have documentation covering that" instead of an invented
+number.
+
+**Tool failures surface as data, not crashes.** Every MCP tool function returns a typed
+`{"error": "..."}` dict rather than raising, so a failed or unknown lookup is something
+the LLM can reason about and report honestly.
+
+**Cost/latency.** The router's cheap model runs on every turn; the (potentially more
+expensive) reasoning model is only invoked for the specific sub-agent(s) the chosen route
+actually needs — a plain live-data lookup never pays for two calls to the expensive model
+the way a single-model design would. `LLM_MODEL_ROUTER` and `LLM_MODEL_REASONING` default
+to the same free-tier model today, but are independent settings for exactly this reason.
+
+---
 
 ## RAG architecture
 
-```
-Documents (web_sourced/ + synthetic/)
-    ↓
-Document Processing (rag/ingestion.py: front-matter parsing, source tagging)
-    ↓
-Chunking (rag/ingestion.py: paragraph-aware, 800 chars / 120 overlap by default)
-    ↓
-Embeddings (rag/embeddings.py: OpenAI text-embedding-3-small)
-    ↓
-Vector Database (rag/vector_store.py: Pinecone serverless index)
-    ↓
-Retriever (rag/retriever.py: top-k similarity search + minimum-similarity cutoff)
-    ↓
-Reranker / Filtering (rag/reranker.py: lexical-overlap boost + dedup)
-    ↓
-LLM (agents/rag_agent.py: answers strictly from retrieved excerpts)
-    ↓
-Grounded Answer (with source titles; explicit "not found" when nothing clears the threshold)
+```mermaid
+flowchart LR
+    DOC["Documents<br/>web_sourced/ + synthetic/"] --> ING["ingestion.py<br/>chunk + tag by source_type"]
+    ING --> EMBP["embeddings.py<br/>embed_texts (passage)"]
+    EMBP --> VS[("vector_store.py<br/>Pinecone index")]
+
+    Q["User query"] --> EMBQ["embeddings.py<br/>embed_query (query)"]
+    EMBQ --> VS
+    VS --> FILT["retriever.py<br/>drop below RAG_MIN_SIMILARITY"]
+    FILT --> RERANK["reranker.py<br/>lexical-overlap boost + dedup"]
+    RERANK --> LLM["rag_agent.py<br/>answer strictly from excerpts"]
+    LLM --> ANS["Grounded answer<br/>+ source titles"]
 ```
 
-The "ask a question not in the knowledge base" requirement is handled at two layers: `retriever.retrieve()` filters out anything below `RAG_MIN_SIMILARITY`, and the RAG agent's system prompt (`prompts/rag_prompt.py`) instructs it to say so explicitly rather than answer from weak or absent context — the agent's own tool call returns the literal string `"NO_RELEVANT_DOCUMENTS_FOUND"` when nothing qualifies, which the model is instructed to translate into a plain "I don't have documentation covering that" rather than paper over.
+**Two sources, one pipeline.** `data/knowledge_base/web_sourced/` (scraped from
+`nectarit.com` by `rag/web_scraper.py`) covers platform/product/company questions.
+`data/knowledge_base/synthetic/` (eight authored documents) covers the facility-technical
+questions the website doesn't publish — chiller fault codes, AHU airflow thresholds,
+troubleshooting steps. Both are ingested by the same `rag/ingestion.py` pipeline and
+tagged `source_type: web_scrape` / `synthetic_doc` on every stored vector, so an answer's
+provenance is always recoverable.
+
+**"Not in the knowledge base" is handled at two layers, not one.**
+`retriever.retrieve()` filters out anything below `RAG_MIN_SIMILARITY` before the LLM
+ever sees it; on top of that, `rag_agent.py`'s retrieval tool returns the literal string
+`"NO_RELEVANT_DOCUMENTS_FOUND"` when nothing qualifies (or if retrieval itself throws),
+and its system prompt (`prompts/rag_prompt.py`) instructs it to say so plainly rather than
+paper over the gap with general knowledge.
+
+**Embeddings are provider-swappable but dimension-locked.** `EMBEDDING_PROVIDER=pinecone`
+(default) uses Pinecone's hosted `multilingual-e5-large` (1024-dim) with `input_type`
+distinguishing passage-indexing from query-embedding for better retrieval quality;
+`EMBEDDING_PROVIDER=openai` uses `text-embedding-3-small` (1536-dim). Switching providers
+changes vector dimensionality, so the Pinecone index must be deleted and re-created (`
+scripts/ingest_knowledge_base.py` does this automatically via
+`vector_store.ensure_index_exists()`).
+
+---
 
 ## MCP architecture
 
-`mcp_server/server.py` is a FastMCP app exposing:
+`mcp_server/server.py` is a FastMCP application. It always registers seven read tools
+from `tools_read.py` — `get_asset_details`, `get_asset_status`, `get_sensor_data`,
+`get_energy_consumption`, `get_active_alerts`, `get_asset_relationships`,
+`find_assets_by_location` — and conditionally registers two write tools from
+`tools_action.py` — `create_service_request`, `update_service_request` — based on the
+`MCP_ALLOW_ACTIONS` environment variable read **once, at import time**. Everything is
+backed by an in-memory simulated dataset (`mock_facility_data.py`) standing in for a real
+BMS/SCADA integration.
 
-- **Read tools** (always available): `get_asset_details`, `get_asset_status`, `get_sensor_data`, `get_energy_consumption`, `get_active_alerts`, `get_asset_relationships`, plus `find_assets_by_location` (added to resolve natural-language locations like "the office on the third floor" into concrete asset IDs — needed for the Task 5 example scenario).
-- **Action tools**: `create_service_request`, `update_service_request`.
+Two different Pydantic AI agents connect to this server as genuine MCP clients
+(`pydantic_ai.mcp.MCPToolset` over `StdioTransport`, launching
+`python -m nectar_agent.mcp_server.server` as a subprocess) — so tool calls go over the
+actual Model Context Protocol, not a direct Python call, and each agent gets its **own**
+server instance:
 
-Backed by an in-memory simulated dataset (`mock_facility_data.py`) standing in for a real BMS/SCADA integration — swappable without touching the tool interface.
+```mermaid
+flowchart TB
+    subgraph P1["data_agent.py's subprocess"]
+        MCP1["FastMCP server instance"]
+    end
+    subgraph P2["action_agent.py's subprocess<br/>env: MCP_ALLOW_ACTIONS=false"]
+        MCP2["FastMCP server instance"]
+    end
 
-Pydantic AI agents connect to this server as genuine MCP clients (`pydantic_ai.mcp.MCPServerStdio` launching `python -m nectar_agent.mcp_server.server` as a subprocess), so tool calls go over the actual Model Context Protocol, not direct Python calls.
+    MCP1 --> R1["7 read tools"]
+    MCP1 --> W1["2 write tools<br/>create/update_service_request"]
+    MCP2 --> R2["7 read tools"]
+    MCP2 -.-> WX["write tools never registered —<br/>not present in this session at all"]
 
-## Safety: confirmation before action
+    R1 --> MOCK[("mock_facility_data.py")]
+    R2 --> MOCK
+    W1 ==> MOCK
+```
 
-This is enforced at three independent layers, not just a prompt instruction:
+**Confirmation before action, enforced at three independent layers:**
 
-1. **The action agent physically cannot call write tools.** Its MCP subprocess is launched with `MCP_ALLOW_ACTIONS=false`; `mcp_server/server.py` reads that at import time and never registers `create_service_request`/`update_service_request` in that process at all — the tools are absent from its MCP session, not merely discouraged.
-2. **Only one function in the whole codebase is allowed to call the write tools**: `orchestration/confirmation.py:execute_confirmed_action`. It is only ever invoked from `orchestrator_agent.py` after `interpret_confirmation_reply` has classified the user's reply as an explicit affirmative — an ambiguous reply re-asks rather than assuming either way.
-3. **The action agent's own output type has no execution path** — `ActionRecommendation` is a proposal (`action_warranted`, `asset_id`, `proposed_summary`), never a completed action. Turning a recommendation into an actual tool call is the orchestrator's job, one turn later, gated on the user's next reply.
+1. **The action agent physically cannot call write tools.** Its subprocess registers only
+   the read tools — there is no tool-calling path to `create_service_request` regardless
+   of what the model decides, because the tool schema simply isn't in its MCP session.
+2. **Exactly one function in the codebase is allowed to call the write tools:**
+   `orchestration/confirmation.py:execute_confirmed_action`, invoked only after
+   `interpret_confirmation_reply` classifies the user's reply as an explicit affirmative.
+   An ambiguous reply re-asks rather than assuming either way. This call bypasses the
+   LLM and MCP entirely — it's a direct Python function call into `tools_action.py`.
+3. **The action agent's own output type has no execution path.** `ActionRecommendation`
+   (`findings`, `action_warranted`, `asset_id`, `proposed_summary`) is a proposal, never a
+   completed action. Turning a recommendation into a real tool call is the orchestrator's
+   job, one turn later, gated on the user's next reply.
 
-## Design decisions & assumptions
-
-See `docs/design_decisions.md` for the full write-up, including: why the orchestrator is explicit Python control flow rather than an open-ended planning loop, the two-source knowledge-base strategy, dependency pinning rationale, and known simplifications (in-memory session store and mock facility data — both called out as the first things to swap for a production deployment).
-
-## Evaluation
-
-See `docs/evaluation_results.md` for the test suite summary and manual routing-accuracy spot checks, and `docs/sample_conversations.md` for transcripts of the brief's example scenarios (single-tool status lookup, RAG-grounded troubleshooting question, the full multi-step "investigate and create a request if necessary" flow, and an out-of-knowledge-base question to confirm the agent says so honestly).
+For a walkthrough of both a single-tool lookup and the full multi-step "investigate and
+create a request if necessary" scenario, see `docs/architecture.md`. Design trade-offs are
+covered in depth in `docs/design_decisions.md`; test coverage and manual routing-accuracy
+checks are in `docs/evaluation_results.md`.

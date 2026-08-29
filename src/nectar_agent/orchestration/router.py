@@ -22,16 +22,10 @@ from nectar_agent.prompts.router_prompt import ROUTER_SYSTEM_PROMPT
 def _get_router_agent() -> Agent[None, RouteDecision]:
     """Build (once) and return the routing Pydantic AI agent.
 
-    Constructed lazily - and cached - rather than at import time, since
-    ``Agent.__init__`` eagerly builds its underlying model client, which
-    requires a valid API key to even be present. Building lazily means
-    importing this module (e.g. for unit tests of
-    ``enforce_confidence_threshold``) never requires credentials; only
-    actually calling ``route()`` does.
-
-    Returns:
-        An ``Agent`` producing structured ``RouteDecision`` output,
-        using the cheap/fast routing model from settings.
+    Built lazily rather than at import time, since ``Agent.__init__``
+    eagerly constructs its model client and needs a valid API key to do
+    so - so importing this module never requires credentials, only
+    calling ``route()`` does.
     """
     settings = get_settings()
     return Agent(
@@ -47,13 +41,8 @@ def enforce_confidence_threshold(decision: RouteDecision, threshold: float) -> R
     Factored out as a pure function (no LLM call) so the confidence
     policy itself is unit-testable in isolation from the routing model.
 
-    Args:
-        decision: The router's raw decision.
-        threshold: Minimum confidence required to act on ``decision.route``
-            as-is.
-
     Returns:
-        ``decision`` unchanged if it meets the threshold (or is already
+        ``decision`` unchanged if it meets ``threshold`` (or is already
         ``CLARIFY``), otherwise a copy with ``route`` forced to
         ``RouteType.CLARIFY`` and ``reasoning`` annotated to explain why.
     """
@@ -76,16 +65,13 @@ async def route(query: str, conversation_history: str = "") -> RouteDecision:
 
     Args:
         query: The current user turn's transcribed text.
-        conversation_history: Recent conversation transcript (see
-            ``models.conversation.ConversationState.recent_history_text``),
-            given as context so pronouns/follow-ups route correctly.
+        conversation_history: Recent transcript (see
+            ``ConversationState.recent_history_text``), given as context
+            so pronouns/follow-ups route correctly.
 
     Returns:
-        The router's ``RouteDecision``. If the model's confidence is
-        below ``settings.router_min_confidence``, the route is coerced
-        to ``RouteType.CLARIFY`` regardless of what was predicted, so
-        callers can rely on confidence policy being enforced in one
-        place rather than re-checking it themselves.
+        The router's ``RouteDecision``, with confidence policy already
+        enforced (see ``enforce_confidence_threshold``).
     """
     settings = get_settings()
     prompt = query

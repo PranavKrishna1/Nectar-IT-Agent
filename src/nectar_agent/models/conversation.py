@@ -24,18 +24,11 @@ class Speaker(str, Enum):
 
 
 class ToolCallRecord(BaseModel):
-    """Record of a single tool or sub-agent invocation made while
-    answering one user turn.
+    """Record of one tool/sub-agent call made while answering a user turn.
 
-    Kept for transparency (used in the evaluation report and sample
-    conversation transcripts) and so the orchestrator can inspect what
-    has already been gathered before deciding whether another step is
-    needed.
-
-    Attributes:
-        tool_name: Name of the MCP tool or sub-agent that was called.
-        arguments: Arguments passed to the call.
-        result_summary: Short summary of what the call returned.
+    Kept for transparency (evaluation report, sample transcripts) and so
+    the orchestrator can inspect what has already been gathered before
+    deciding whether another step is needed.
     """
 
     tool_name: str
@@ -44,15 +37,7 @@ class ToolCallRecord(BaseModel):
 
 
 class Turn(BaseModel):
-    """One utterance in the conversation, from either party.
-
-    Attributes:
-        speaker: Whether the user or the agent produced this turn.
-        text: The transcribed/generated text content.
-        timestamp: When the turn occurred.
-        tool_calls: Tool/sub-agent calls made while producing this turn
-            (empty for user turns).
-    """
+    """One utterance in the conversation, from either party."""
 
     speaker: Speaker
     text: str
@@ -100,23 +85,6 @@ class ConversationState(BaseModel):
     active_entities: dict[str, str] = Field(default_factory=dict)
 
     def recent_history_text(self, max_turns: int = 6) -> str:
-        """Render the most recent turns as plain text for LLM context.
-
-        Args:
-            max_turns: Maximum number of most-recent turns to include.
-
-        Returns:
-            A newline-separated transcript, e.g. "user: ...\\nagent: ...",
-            suitable for dropping into a prompt as conversation history.
-            Returns an empty string if rendering fails unexpectedly,
-            rather than raising, so a history-formatting bug can never
-            crash the turn that was trying to use it as context.
-
-        Raises:
-            None: Failures are caught and degrade to ``""``.
-        """
-        try:
-            recent = self.turns[-max_turns:]
-            return "\n".join(f"{t.speaker.value}: {t.text}" for t in recent)
-        except Exception:
-            return ""
+        """Render the most recent turns as a plain "speaker: text" transcript."""
+        recent = self.turns[-max_turns:]
+        return "\n".join(f"{t.speaker.value}: {t.text}" for t in recent)

@@ -60,16 +60,7 @@ class Asset(BaseModel):
 
 
 class SensorReading(BaseModel):
-    """A single point-in-time reading from a facility sensor.
-
-    Attributes:
-        sensor_id: Identifier of the sensor that produced the reading.
-        asset_id: Asset the sensor is attached to or monitors.
-        metric: Name of the measured quantity, e.g. "temperature_c".
-        value: Numeric value of the reading.
-        unit: Unit of measurement, e.g. "C", "%", "kW".
-        timestamp: When the reading was captured.
-    """
+    """A single point-in-time reading from a facility sensor."""
 
     sensor_id: str
     asset_id: str
@@ -88,16 +79,7 @@ class AlertSeverity(str, Enum):
 
 
 class Alert(BaseModel):
-    """An active or historical fault/alert raised against an asset.
-
-    Attributes:
-        alert_id: Unique identifier for the alert.
-        asset_id: Asset the alert was raised against.
-        severity: How urgent the alert is.
-        message: Human-readable description of the alert.
-        raised_at: When the alert was first raised.
-        active: Whether the alert is still open.
-    """
+    """An active or historical fault/alert raised against an asset."""
 
     alert_id: str
     asset_id: str
@@ -112,8 +94,6 @@ class EnergyConsumption(BaseModel):
 
     Attributes:
         scope_id: Asset ID or building name the reading applies to.
-        period_start: Start of the measurement window.
-        period_end: End of the measurement window.
         kwh: Total energy consumed in kilowatt-hours.
         baseline_kwh: Expected/normal consumption for the same window,
             used to compute percentage-over-baseline figures.
@@ -127,24 +107,14 @@ class EnergyConsumption(BaseModel):
 
     @property
     def percent_over_baseline(self) -> float | None:
-        """Return how far ``kwh`` is above ``baseline_kwh`` as a percentage.
+        """How far ``kwh`` is above ``baseline_kwh``, as a percentage.
 
-        Returns:
-            The percentage above baseline (e.g. 18.0 for 18% over), or
-            ``None`` if no baseline is available to compare against, or
-            if the computation fails unexpectedly.
-
-        Raises:
-            None: Errors are caught internally; this property degrades
-                to ``None`` rather than raising, since callers treat a
-                missing baseline and a failed computation the same way.
+        ``None`` if there's no baseline to compare against (including a
+        zero baseline, which would otherwise divide by zero).
         """
-        try:
-            if not self.baseline_kwh:
-                return None
-            return round(((self.kwh - self.baseline_kwh) / self.baseline_kwh) * 100, 1)
-        except (TypeError, ZeroDivisionError, ArithmeticError):
+        if not self.baseline_kwh:
             return None
+        return round(((self.kwh - self.baseline_kwh) / self.baseline_kwh) * 100, 1)
 
 
 class ServiceRequestStatus(str, Enum):
@@ -157,16 +127,7 @@ class ServiceRequestStatus(str, Enum):
 
 
 class ServiceRequest(BaseModel):
-    """A maintenance/service ticket created or updated by the action agent.
-
-    Attributes:
-        request_id: Unique identifier assigned when the request is created.
-        asset_id: Asset the request concerns.
-        summary: Short description of the issue or work needed.
-        status: Current lifecycle status.
-        created_at: When the request was created.
-        updated_at: When the request was last updated.
-    """
+    """A maintenance/service ticket created or updated by the action agent."""
 
     request_id: str
     asset_id: str

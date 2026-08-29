@@ -48,53 +48,32 @@ class ActionRecommendation(BaseModel):
 
 
 def _read_only_mcp_toolset() -> MCPToolset:
-    """Build a stdio MCP toolset whose server subprocess has no write tools.
-
-    Returns:
-        An ``MCPToolset`` whose transport sets ``MCP_ALLOW_ACTIONS=false``
-        in its subprocess environment.
-
-    Raises:
-        RuntimeError: If the toolset/transport cannot be constructed.
-    """
-    try:
-        transport = StdioTransport(
-            command=sys.executable,
-            args=["-m", "nectar_agent.mcp_server.server"],
-            env={"MCP_ALLOW_ACTIONS": "false"},
-        )
-        return MCPToolset(transport)
-    except Exception as exc:
-        raise RuntimeError(f"Failed to build the read-only MCP toolset: {exc}") from exc
+    """Build a stdio MCP toolset whose server subprocess has no write tools."""
+    transport = StdioTransport(
+        command=sys.executable,
+        args=["-m", "nectar_agent.mcp_server.server"],
+        env={"MCP_ALLOW_ACTIONS": "false"},
+    )
+    # pydantic_ai's default 5s MCP handshake timeout can be too tight for
+    # this subprocess's import + startup cost on a cold/loaded machine.
+    return MCPToolset(transport, init_timeout=30)
 
 
 @lru_cache
 def build_action_agent() -> Agent[None, ActionRecommendation]:
     """Build (once) and return the investigation/action-recommendation agent.
 
-    Built lazily and cached (rather than at import time) since
-    ``Agent.__init__`` eagerly constructs its model client, which
-    requires a valid API key to be present - see
-    ``orchestration/router.py`` for the same pattern and rationale.
-
-    Returns:
-        A Pydantic AI ``Agent`` producing ``ActionRecommendation``
-        output, with only read-tool MCP access.
-
-    Raises:
-        RuntimeError: If the agent cannot be constructed (e.g. missing
-            or invalid API key for the configured model).
+    Built lazily rather than at import time, since ``Agent.__init__``
+    eagerly constructs its model client and needs a valid API key to do
+    so - see ``orchestration/router.py`` for the same pattern.
     """
-    try:
-        settings = get_settings()
-        return Agent(
-            settings.llm_model_reasoning,
-            output_type=ActionRecommendation,
-            system_prompt=ACTION_AGENT_SYSTEM_PROMPT,
-            toolsets=[_read_only_mcp_toolset()],
-        )
-    except Exception as exc:
-        raise RuntimeError(f"Failed to build the action agent: {exc}") from exc
+    settings = get_settings()
+    return Agent(
+        settings.llm_model_reasoning,
+        output_type=ActionRecommendation,
+        system_prompt=ACTION_AGENT_SYSTEM_PROMPT,
+        toolsets=[_read_only_mcp_toolset()],
+    )
 
 
 async def investigate(query: str) -> ActionRecommendation:
@@ -108,16 +87,6 @@ async def investigate(query: str) -> ActionRecommendation:
     Returns:
         An ``ActionRecommendation`` describing findings and, if
         warranted, a proposed service request - never an executed one.
-
-    Raises:
-        RuntimeError: If building the agent or running the investigation
-            fails (e.g. a network error or an LLM API failure).
     """
-    try:
-        agent = build_action_agent()
-        result = await agent.run(query)
-        return result.output
-    except RuntimeError:
-        raise
-    except Exception as exc:
-        raise RuntimeError(f"Action agent investigation failed: {exc}") from exc
+    result = await build_action_agent().run(query)
+    return result.output

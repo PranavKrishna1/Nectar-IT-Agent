@@ -36,13 +36,7 @@ DEFAULT_PAGES: tuple[str, ...] = (
 
 @dataclass
 class ScrapedPage:
-    """A single scraped and cleaned web page.
-
-    Attributes:
-        url: Fully-qualified URL the content was fetched from.
-        title: Page title, used as the document heading.
-        text: Cleaned, plain-text/markdown-ish body content.
-    """
+    """A single scraped and cleaned web page: URL, title, and body text."""
 
     url: str
     title: str
@@ -50,21 +44,12 @@ class ScrapedPage:
 
 
 def _clean_html(html: str) -> tuple[str, str]:
-    """Strip an HTML page down to a title and readable body text.
+    """Strip an HTML page down to a ``(title, text)`` tuple.
 
-    Args:
-        html: Raw HTML content of the page.
-
-    Returns:
-        A ``(title, text)`` tuple. Navigation, scripts, styles, and
-        boilerplate elements are removed; consecutive blank lines are
-        collapsed so the result reads as clean paragraphs. Falls back to
-        ``("Untitled", "")`` if parsing fails unexpectedly, so a single
-        malformed page cannot abort the whole scrape run.
-
-    Raises:
-        None: Parsing failures are caught internally and degrade to an
-            empty result rather than propagating.
+    Navigation, scripts, styles, and boilerplate elements are removed;
+    consecutive blank lines are collapsed so the result reads as clean
+    paragraphs. Falls back to ``("Untitled", "")`` if parsing fails, so a
+    single malformed page cannot abort the whole scrape run.
     """
     try:
         soup = BeautifulSoup(html, "html.parser")
@@ -86,26 +71,16 @@ def _clean_html(html: str) -> tuple[str, str]:
 def scrape_page(base_url: str, path: str, client: httpx.Client) -> ScrapedPage | None:
     """Fetch and clean a single page from the target site.
 
-    Args:
-        base_url: Root URL of the site, e.g. "https://www.nectarit.com/".
-        path: Path relative to ``base_url`` to fetch, e.g.
-            "solutions/connected-buildings". Empty string fetches the
-            homepage.
-        client: Shared ``httpx.Client`` used to make the request.
-
-    Returns:
-        A ``ScrapedPage`` on success, or ``None`` if the request failed,
-        returned no usable content, or any other unexpected error
-        occurred - a single bad page must never abort the whole scrape
-        run.
+    ``path`` is relative to ``base_url`` (e.g. "solutions/connected-
+    buildings"); empty string fetches the homepage. Returns ``None`` if
+    the request failed, returned no usable content, or any other
+    unexpected error occurred - a single bad page must never abort the
+    whole scrape run.
     """
     try:
         url = base_url.rstrip("/") + "/" + path.lstrip("/") if path else base_url
-        try:
-            response = client.get(url, timeout=15.0, follow_redirects=True)
-            response.raise_for_status()
-        except httpx.HTTPError:
-            return None
+        response = client.get(url, timeout=15.0, follow_redirects=True)
+        response.raise_for_status()
 
         title, text = _clean_html(response.text)
         if not text:
@@ -118,62 +93,36 @@ def scrape_page(base_url: str, path: str, client: httpx.Client) -> ScrapedPage |
 def scrape_site(
     base_url: str, pages: tuple[str, ...] = DEFAULT_PAGES
 ) -> list[ScrapedPage]:
-    """Scrape a fixed list of pages from the target site.
+    """Scrape a fixed list of pages (plus the homepage) from the target site.
 
-    Args:
-        base_url: Root URL of the site to scrape.
-        pages: Relative paths to fetch, in addition to the homepage.
-
-    Returns:
-        List of successfully scraped pages (failed fetches are skipped
-        silently, since marketing pages occasionally 404/redirect and
-        that should not abort the whole ingestion run).
-
-    Raises:
-        RuntimeError: If the shared HTTP client itself cannot be created
-            (``scrape_page`` already absorbs per-page failures).
+    Failed fetches are skipped silently, since marketing pages
+    occasionally 404/redirect and that should not abort the whole
+    ingestion run.
     """
-    try:
-        results: list[ScrapedPage] = []
-        with httpx.Client(headers={"User-Agent": "NectarFacilityAgent-KB-Ingest/1.0"}) as client:
-            for path in pages:
-                page = scrape_page(base_url, path, client)
-                if page is not None:
-                    results.append(page)
-        return results
-    except Exception as exc:
-        raise RuntimeError(f"Failed to scrape site '{base_url}': {exc}") from exc
+    results: list[ScrapedPage] = []
+    with httpx.Client(headers={"User-Agent": "NectarFacilityAgent-KB-Ingest/1.0"}) as client:
+        for path in pages:
+            page = scrape_page(base_url, path, client)
+            if page is not None:
+                results.append(page)
+    return results
 
 
 def write_scraped_pages(pages: list[ScrapedPage], output_dir: Path) -> list[Path]:
     """Write scraped pages to markdown files with source-URL front matter.
 
-    Args:
-        pages: Pages returned by ``scrape_site``.
-        output_dir: Directory to write the markdown files into
-            (typically ``data/knowledge_base/web_sourced/``).
-
-    Returns:
-        List of file paths written.
-
-    Raises:
-        RuntimeError: If creating the output directory or writing a file
-            fails (e.g. a permissions error or a full disk).
+    ``output_dir`` is typically ``data/knowledge_base/web_sourced/``.
+    Returns the list of file paths written.
     """
-    try:
-        output_dir.mkdir(parents=True, exist_ok=True)
-        written: list[Path] = []
-        for i, page in enumerate(pages):
-            slug = re.sub(r"[^a-z0-9]+", "-", page.title.lower()).strip("-") or f"page-{i}"
-            file_path = output_dir / f"{slug}.md"
-            front_matter = (
-                f"---\nsource_url: {page.url}\nsource_type: web_scrape\n"
-                f"title: {page.title}\n---\n\n"
-            )
-            file_path.write_text(
-                front_matter + f"# {page.title}\n\n{page.text}\n", encoding="utf-8"
-            )
-            written.append(file_path)
-        return written
-    except Exception as exc:
-        raise RuntimeError(f"Failed to write scraped pages to '{output_dir}': {exc}") from exc
+    output_dir.mkdir(parents=True, exist_ok=True)
+    written: list[Path] = []
+    for i, page in enumerate(pages):
+        slug = re.sub(r"[^a-z0-9]+", "-", page.title.lower()).strip("-") or f"page-{i}"
+        file_path = output_dir / f"{slug}.md"
+        front_matter = (
+            f"---\nsource_url: {page.url}\nsource_type: web_scrape\n"
+            f"title: {page.title}\n---\n\n"
+        )
+        file_path.write_text(front_matter + f"# {page.title}\n\n{page.text}\n", encoding="utf-8")
+        written.append(file_path)
+    return written

@@ -40,69 +40,31 @@ def _mcp_toolset() -> MCPToolset:
     Launches ``nectar_agent.mcp_server.server`` as a subprocess speaking
     MCP over stdio - the standard way a Pydantic AI agent consumes an
     MCP tool server without a network hop.
-
-    Returns:
-        A configured ``MCPToolset`` instance.
-
-    Raises:
-        RuntimeError: If the toolset/transport cannot be constructed.
     """
-    try:
-        transport = StdioTransport(
-            command=sys.executable, args=["-m", "nectar_agent.mcp_server.server"]
-        )
-        return MCPToolset(transport)
-    except Exception as exc:
-        raise RuntimeError(f"Failed to build the MCP toolset: {exc}") from exc
+    transport = StdioTransport(
+        command=sys.executable, args=["-m", "nectar_agent.mcp_server.server"]
+    )
+    # pydantic_ai's default 5s MCP handshake timeout can be too tight for
+    # this subprocess's import + startup cost on a cold/loaded machine.
+    return MCPToolset(transport, init_timeout=30)
 
 
 @lru_cache
 def build_data_agent() -> Agent:
     """Build (once) and return the data agent wired to the facility MCP server.
 
-    Built lazily and cached (rather than at import time) since
-    ``Agent.__init__`` eagerly constructs its model client, which
-    requires a valid API key to be present - see
-    ``orchestration/router.py`` for the same pattern and rationale.
-
-    Returns:
-        A Pydantic AI ``Agent`` whose only tools are the MCP server's
-        read tools.
-
-    Raises:
-        RuntimeError: If the agent cannot be constructed (e.g. missing
-            or invalid API key for the configured model).
+    Built lazily rather than at import time - see ``orchestration/router.py``
+    for why (``Agent.__init__`` needs a valid API key up front).
     """
-    try:
-        settings = get_settings()
-        return Agent(
-            settings.llm_model_reasoning,
-            system_prompt=DATA_AGENT_SYSTEM_PROMPT,
-            toolsets=[_mcp_toolset()],
-        )
-    except Exception as exc:
-        raise RuntimeError(f"Failed to build the data agent: {exc}") from exc
+    settings = get_settings()
+    return Agent(
+        settings.llm_model_reasoning,
+        system_prompt=DATA_AGENT_SYSTEM_PROMPT,
+        toolsets=[_mcp_toolset()],
+    )
 
 
 async def answer_with_live_data(query: str) -> str:
-    """Answer a live-data or data-summary question via MCP tools.
-
-    Args:
-        query: The user's natural-language question.
-
-    Returns:
-        A concise, voice-friendly answer grounded in live MCP tool
-        results.
-
-    Raises:
-        RuntimeError: If building the agent or running the query fails
-            (e.g. a network error or an LLM API failure).
-    """
-    try:
-        agent = build_data_agent()
-        result = await agent.run(query)
-        return result.output
-    except RuntimeError:
-        raise
-    except Exception as exc:
-        raise RuntimeError(f"Data agent failed to answer query: {exc}") from exc
+    """Answer a live-data or data-summary question via MCP tools."""
+    result = await build_data_agent().run(query)
+    return result.output

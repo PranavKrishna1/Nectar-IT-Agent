@@ -25,67 +25,40 @@ _NEGATIVE_PHRASES = {
     "no", "nope", "don't", "do not", "cancel", "negative", "not now", "stop",
 }
 
+_ACTION_TOOLS = {
+    "create_service_request": tools_action.create_service_request,
+    "update_service_request": tools_action.update_service_request,
+}
+
 
 def interpret_confirmation_reply(user_text: str) -> bool | None:
     """Interpret a user's reply to a pending confirmation question.
 
-    Args:
-        user_text: The user's transcribed reply.
-
     Returns:
-        ``True`` if the reply reads as an affirmative confirmation,
-        ``False`` if it reads as a decline, or ``None`` if the reply is
-        ambiguous and the orchestrator should ask again rather than
-        assume either way. Also returns ``None`` (treat as ambiguous)
-        if interpretation fails unexpectedly, since re-asking is always
-        the safe fallback for a safety gate like this one.
-
-    Raises:
-        None: Failures are caught internally and degrade to ``None``.
+        ``True``/``False`` for a clear yes/no, or ``None`` if the reply
+        is ambiguous - the orchestrator should re-ask rather than guess.
     """
-    try:
-        normalized = user_text.strip().lower().rstrip(".!")
-        if normalized in _AFFIRMATIVE_PHRASES:
-            return True
-        if normalized in _NEGATIVE_PHRASES:
-            return False
-        if any(normalized.startswith(p) for p in _AFFIRMATIVE_PHRASES):
-            return True
-        if any(normalized.startswith(p) for p in _NEGATIVE_PHRASES):
-            return False
-        return None
-    except Exception:
-        return None
+    normalized = user_text.strip().lower().rstrip(".!")
+    if normalized in _AFFIRMATIVE_PHRASES:
+        return True
+    if normalized in _NEGATIVE_PHRASES:
+        return False
+    if any(normalized.startswith(p) for p in _AFFIRMATIVE_PHRASES):
+        return True
+    if any(normalized.startswith(p) for p in _NEGATIVE_PHRASES):
+        return False
+    return None
 
 
 def execute_confirmed_action(confirmation: PendingConfirmation) -> dict:
     """Execute a previously-proposed action after the user has confirmed it.
 
-    Args:
-        confirmation: The ``PendingConfirmation`` that was held on the
-            session, describing which action tool to call and with what
-            arguments.
-
-    Returns:
-        The result dict returned by the underlying action tool.
-
     Raises:
-        ValueError: If ``confirmation.action_name`` is not a recognized
-            action tool - this should be unreachable in normal operation
-            and indicates a bug upstream, so it is raised loudly rather
-            than silently ignored.
-        RuntimeError: If the underlying tool call itself fails
-            unexpectedly for any other reason.
+        ValueError: If ``confirmation.action_name`` isn't a recognized
+            action tool - unreachable in normal operation, so this is a
+            loud signal of a bug upstream rather than something to hide.
     """
-    try:
-        if confirmation.action_name == "create_service_request":
-            return tools_action.create_service_request(**confirmation.arguments)
-        if confirmation.action_name == "update_service_request":
-            return tools_action.update_service_request(**confirmation.arguments)
+    action = _ACTION_TOOLS.get(confirmation.action_name)
+    if action is None:
         raise ValueError(f"Unrecognized action tool: {confirmation.action_name}")
-    except ValueError:
-        raise
-    except Exception as exc:
-        raise RuntimeError(
-            f"Failed to execute confirmed action '{confirmation.action_name}': {exc}"
-        ) from exc
+    return action(**confirmation.arguments)

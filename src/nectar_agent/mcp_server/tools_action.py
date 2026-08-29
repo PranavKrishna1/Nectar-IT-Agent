@@ -25,15 +25,8 @@ def create_service_request(asset_id: str, summary: str) -> dict:
     confirmation flow in ``orchestration/confirmation.py`` - never
     directly from routing or reasoning logic.
 
-    Args:
-        asset_id: Asset the request concerns, e.g. "AHU-02".
-        summary: Short description of the issue or work needed, e.g.
-            "Low airflow fault - possible blocked filter or belt slip."
-
-    Returns:
-        A dict describing the created request, including its generated
-        ``request_id``, or an ``error`` key if the asset does not exist
-        or creation fails unexpectedly.
+    Returns the created request (including its generated ``request_id``),
+    or an ``error`` key if the asset does not exist.
     """
     try:
         asset = data.get_asset(asset_id)
@@ -51,21 +44,15 @@ def update_service_request(request_id: str, status: str) -> dict:
     Safety: this is a write action and, like ``create_service_request``,
     must only be invoked after explicit user confirmation.
 
-    Args:
-        request_id: ID of the request to update, e.g. "SR-AB12CD34".
-        status: New status - one of "open", "in_progress", "resolved",
-            "cancelled".
-
-    Returns:
-        A dict describing the updated request, or an ``error`` key if
-        the request ID or status value is invalid, or the update fails
-        unexpectedly.
+    ``status`` is one of "open", "in_progress", "resolved", "cancelled".
+    Returns the updated request, or an ``error`` key if the request ID
+    or status value is invalid.
     """
     try:
-        try:
-            parsed_status = ServiceRequestStatus(status.lower())
-        except ValueError:
-            return {"error": f"Invalid status '{status}'."}
+        parsed_status = ServiceRequestStatus(status.lower())
+    except ValueError:
+        return {"error": f"Invalid status '{status}'."}
+    try:
         updated = data.update_service_request_status(request_id, parsed_status)
         if updated is None:
             return {"error": f"No service request found with id '{request_id}'."}

@@ -32,14 +32,7 @@ from pathlib import Path
 
 
 def read_audio_bytes(path: str | Path) -> bytes:
-    """Read raw audio bytes from a file path.
-
-    Args:
-        path: Path to an audio file (e.g. WAV/MP3) captured from the
-            user's microphone.
-
-    Returns:
-        Raw file bytes, ready to hand to an STT provider.
+    """Read raw audio bytes from a file path, ready to hand to an STT provider.
 
     Raises:
         FileNotFoundError: If ``path`` does not exist.
@@ -51,15 +44,7 @@ def read_audio_bytes(path: str | Path) -> bytes:
 
 
 def write_audio_bytes(data: bytes, path: str | Path) -> Path:
-    """Write raw audio bytes (e.g. TTS output) to a file.
-
-    Args:
-        data: Raw audio bytes to write.
-        path: Destination file path.
-
-    Returns:
-        The path the audio was written to, as a ``Path``.
-    """
+    """Write raw audio bytes (e.g. TTS output) to a file, returning the path."""
     file_path = Path(path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
     file_path.write_bytes(data)
@@ -74,16 +59,12 @@ def record_from_microphone(sample_rate: int = 16000) -> Path:
     ``sounddevice`` captures frames on its own callback thread in the
     background) - this avoids guessing a fixed recording duration, which
     would either cut the operator off mid-sentence or force an awkward
-    silent wait.
+    silent wait. ``sample_rate`` defaults to 16 kHz to match what
+    faster-whisper (and most STT backends) expect, avoiding a resampling
+    step downstream.
 
-    Args:
-        sample_rate: Capture sample rate in Hz. 16 kHz matches what
-            faster-whisper (and most STT backends) expect, so no
-            resampling step is needed downstream.
-
-    Returns:
-        Path to a newly written mono 16-bit PCM WAV file in the system
-        temp directory. Caller is responsible for deleting it once done.
+    Returns the path to a newly written mono 16-bit PCM WAV file in the
+    system temp directory; the caller is responsible for deleting it.
     """
     import sounddevice as sd
 
@@ -115,10 +96,6 @@ def play_audio(path: str | Path) -> None:
     with ``sounddevice``, blocking until playback finishes so the live
     voice loop naturally waits for the agent's spoken response before
     prompting for the next turn.
-
-    Args:
-        path: Path to the audio file to play (e.g. the MP3 written by
-            ``voice.tts.synthesize``).
     """
     import miniaudio
     import numpy as np

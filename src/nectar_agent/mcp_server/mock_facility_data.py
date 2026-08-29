@@ -169,168 +169,72 @@ _SERVICE_REQUESTS: dict[str, ServiceRequest] = {}
 
 
 def get_asset(asset_id: str) -> Asset | None:
-    """Look up a single asset by ID.
-
-    Args:
-        asset_id: Asset identifier, e.g. "AHU-02".
-
-    Returns:
-        The matching ``Asset``, or ``None`` if no such asset exists.
-
-    Raises:
-        RuntimeError: If the lookup fails unexpectedly (e.g. ``asset_id``
-            is not a string and has no ``.upper()``).
-    """
-    try:
-        return _ASSETS.get(asset_id.upper())
-    except Exception as exc:
-        raise RuntimeError(f"Failed to look up asset '{asset_id}': {exc}") from exc
+    """Look up a single asset by ID, or ``None`` if it doesn't exist."""
+    return _ASSETS.get(asset_id.upper())
 
 
 def find_assets(building: str | None = None, asset_type: AssetType | None = None) -> list[Asset]:
-    """Search assets by building and/or type.
-
-    Args:
-        building: If given, only assets in this building are returned
-            (case-insensitive substring match).
-        asset_type: If given, only assets of this type are returned.
-
-    Returns:
-        List of matching assets, possibly empty.
-
-    Raises:
-        RuntimeError: If filtering fails unexpectedly (e.g. ``building``
-            is not a string).
-    """
-    try:
-        results = list(_ASSETS.values())
-        if building:
-            results = [a for a in results if building.lower() in a.building.lower()]
-        if asset_type:
-            results = [a for a in results if a.asset_type == asset_type]
-        return results
-    except Exception as exc:
-        raise RuntimeError(f"Failed to search assets: {exc}") from exc
+    """Search assets by building (case-insensitive substring) and/or type."""
+    results = list(_ASSETS.values())
+    if building:
+        results = [a for a in results if building.lower() in a.building.lower()]
+    if asset_type:
+        results = [a for a in results if a.asset_type == asset_type]
+    return results
 
 
 def get_sensor_readings(scope_id: str) -> list[SensorReading]:
     """Return the latest known sensor readings for an asset or building.
 
-    Args:
-        scope_id: Asset ID (e.g. "CHILLER-01") or building name
-            (e.g. "Building A").
-
-    Returns:
-        List of sensor readings for that scope, possibly empty.
-
-    Raises:
-        RuntimeError: If the lookup fails unexpectedly.
+    ``scope_id`` is an asset ID (e.g. "CHILLER-01") or building name
+    (e.g. "Building A").
     """
-    try:
-        return _SENSOR_READINGS.get(scope_id, [])
-    except Exception as exc:
-        raise RuntimeError(f"Failed to fetch sensor readings for '{scope_id}': {exc}") from exc
+    return _SENSOR_READINGS.get(scope_id, [])
 
 
 def get_alerts(asset_id: str | None = None, active_only: bool = True) -> list[Alert]:
     """Return alerts, optionally scoped to one asset.
 
-    Args:
-        asset_id: If given, only alerts for this asset are returned.
-        active_only: If true (default), only currently-open alerts are
-            returned.
-
-    Returns:
-        List of matching alerts, possibly empty.
-
-    Raises:
-        RuntimeError: If the lookup/filtering fails unexpectedly.
+    If ``asset_id`` is omitted, alerts for all assets are returned.
+    ``active_only`` (default) restricts to currently-open alerts.
     """
-    try:
-        if asset_id:
-            alerts = _ALERTS.get(asset_id.upper(), [])
-        else:
-            alerts = [a for alerts in _ALERTS.values() for a in alerts]
-        if active_only:
-            alerts = [a for a in alerts if a.active]
-        return alerts
-    except Exception as exc:
-        raise RuntimeError(f"Failed to fetch alerts for '{asset_id}': {exc}") from exc
+    if asset_id:
+        alerts = _ALERTS.get(asset_id.upper(), [])
+    else:
+        alerts = [a for alerts in _ALERTS.values() for a in alerts]
+    if active_only:
+        alerts = [a for a in alerts if a.active]
+    return alerts
 
 
 def get_energy(scope_id: str) -> EnergyConsumption | None:
-    """Return the trailing-24h energy consumption for an asset or building.
-
-    Args:
-        scope_id: Asset ID or building name.
-
-    Returns:
-        The matching ``EnergyConsumption`` record, or ``None`` if no
-        energy data is tracked for that scope.
-
-    Raises:
-        RuntimeError: If the lookup fails unexpectedly.
-    """
-    try:
-        return _ENERGY.get(scope_id)
-    except Exception as exc:
-        raise RuntimeError(f"Failed to fetch energy data for '{scope_id}': {exc}") from exc
+    """Return the trailing-24h energy consumption for an asset or building."""
+    return _ENERGY.get(scope_id)
 
 
 def add_service_request(asset_id: str, summary: str) -> ServiceRequest:
-    """Create a new service request and persist it in the in-memory store.
-
-    Args:
-        asset_id: Asset the request concerns.
-        summary: Short description of the issue/work needed.
-
-    Returns:
-        The newly created ``ServiceRequest``, including its generated ID.
-
-    Raises:
-        RuntimeError: If constructing or persisting the request fails
-            unexpectedly (e.g. a validation error on the ``ServiceRequest``
-            model).
-    """
-    try:
-        request_id = f"SR-{uuid.uuid4().hex[:8].upper()}"
-        now = datetime.now(timezone.utc)
-        request = ServiceRequest(
-            request_id=request_id,
-            asset_id=asset_id,
-            summary=summary,
-            status=ServiceRequestStatus.OPEN,
-            created_at=now,
-            updated_at=now,
-        )
-        _SERVICE_REQUESTS[request_id] = request
-        return request
-    except Exception as exc:
-        raise RuntimeError(f"Failed to create service request for '{asset_id}': {exc}") from exc
+    """Create a new service request and persist it in the in-memory store."""
+    request_id = f"SR-{uuid.uuid4().hex[:8].upper()}"
+    now = datetime.now(timezone.utc)
+    request = ServiceRequest(
+        request_id=request_id,
+        asset_id=asset_id,
+        summary=summary,
+        status=ServiceRequestStatus.OPEN,
+        created_at=now,
+        updated_at=now,
+    )
+    _SERVICE_REQUESTS[request_id] = request
+    return request
 
 
 def update_service_request_status(
     request_id: str, status: ServiceRequestStatus
 ) -> ServiceRequest | None:
-    """Update the status of an existing service request.
-
-    Args:
-        request_id: ID of the request to update.
-        status: New status to set.
-
-    Returns:
-        The updated ``ServiceRequest``, or ``None`` if ``request_id`` is
-        not found.
-
-    Raises:
-        RuntimeError: If updating the request fails unexpectedly.
-    """
-    try:
-        request = _SERVICE_REQUESTS.get(request_id)
-        if request is None:
-            return None
-        request.status = status
-        request.updated_at = datetime.now(timezone.utc)
-        return request
-    except Exception as exc:
-        raise RuntimeError(f"Failed to update service request '{request_id}': {exc}") from exc
+    """Update an existing service request's status, or ``None`` if not found."""
+    request = _SERVICE_REQUESTS.get(request_id)
+    if request is None:
+        return None
+    request.status = status
+    request.updated_at = datetime.now(timezone.utc)
+    return request

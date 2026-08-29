@@ -36,20 +36,11 @@ class RouteType(str, Enum):
 class RouteDecision(BaseModel):
     """Structured output produced by the routing agent for one user turn.
 
-    Attributes:
-        route: The chosen destination for this request.
-        confidence: Router's self-reported confidence in ``route``,
-            from 0.0 (no confidence) to 1.0 (certain).
-        reasoning: Short natural-language justification, kept for
-            observability/debugging and for the evaluation report -
-            never shown to the end user.
-        requires_live_data: Whether live facility data (MCP tools) is
-            needed to answer, independent of which ``route`` was chosen.
-        requires_knowledge_base: Whether static documentation (RAG) is
-            needed to answer.
-        is_multi_step: Whether the router expects this request to need
-            more than one tool/agent call before an answer is possible
-            (e.g. "investigate and create a request if necessary").
+    ``confidence`` is 0.0 (no confidence) to 1.0 (certain); ``reasoning``
+    is a short justification kept for observability/eval, never shown to
+    the user; ``is_multi_step`` flags requests likely needing more than
+    one tool/agent call (e.g. "investigate and create a request if
+    necessary").
     """
 
     route: RouteType

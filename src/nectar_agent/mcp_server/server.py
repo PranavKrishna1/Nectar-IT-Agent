@@ -70,25 +70,17 @@ def main() -> None:
     Reads the ``MCP_TRANSPORT`` environment variable to decide between
     stdio (default) and streamable-HTTP transport, and uses the
     host/port from application settings for the HTTP case.
-
-    Raises:
-        RuntimeError: If settings fail to load or the server fails to
-            start, wrapping the underlying error with context about
-            which transport was being started.
     """
-    try:
-        settings = get_settings()
-        transport = os.environ.get("MCP_TRANSPORT", "stdio")
-        if transport == "http":
-            mcp.run(
-                transport="streamable-http",
-                host=settings.mcp_server_host,
-                port=settings.mcp_server_port,
-            )
-        else:
-            mcp.run(transport="stdio")
-    except Exception as exc:
-        raise RuntimeError(f"Failed to start the MCP server: {exc}") from exc
+    settings = get_settings()
+    transport = os.environ.get("MCP_TRANSPORT", "stdio")
+    if transport == "http":
+        mcp.run(
+            transport="streamable-http",
+            host=settings.mcp_server_host,
+            port=settings.mcp_server_port,
+        )
+    else:
+        mcp.run(transport="stdio")
 
 
 if __name__ == "__main__":

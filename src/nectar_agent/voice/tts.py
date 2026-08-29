@@ -23,13 +23,6 @@ from nectar_agent.voice.audio_utils import write_audio_bytes
 def synthesize(text: str, output_path: str | Path) -> Path:
     """Convert text to speech and write the resulting audio to disk.
 
-    Args:
-        text: The agent's natural-language response to speak aloud.
-        output_path: File path to write the synthesized audio to.
-
-    Returns:
-        The path the audio was written to.
-
     Raises:
         ValueError: If ``settings.tts_provider`` is not a supported value.
     """
@@ -46,15 +39,7 @@ def synthesize(text: str, output_path: str | Path) -> Path:
 
 
 async def _collect_edge_tts_audio(text: str, voice: str) -> bytes:
-    """Stream synthesized audio chunks from edge-tts and concatenate them.
-
-    Args:
-        text: Text to synthesize.
-        voice: Edge TTS voice name, e.g. "en-US-AriaNeural".
-
-    Returns:
-        The complete MP3 payload as bytes.
-    """
+    """Stream synthesized audio chunks from edge-tts and concatenate them into MP3 bytes."""
     import edge_tts
 
     communicate = edge_tts.Communicate(text, voice)
@@ -77,12 +62,6 @@ def _synthesize_edge_tts(text: str) -> bytes:
     called from a running event loop", so when a loop is already running
     the coroutine is dispatched to a short-lived worker thread with its
     own loop instead.
-
-    Args:
-        text: Text to synthesize.
-
-    Returns:
-        Raw audio bytes (MP3).
     """
     import asyncio
     import concurrent.futures
@@ -103,14 +82,7 @@ def _synthesize_edge_tts(text: str) -> bytes:
 
 
 def _synthesize_elevenlabs(text: str) -> bytes:
-    """Synthesize speech using the ElevenLabs REST API.
-
-    Args:
-        text: Text to synthesize.
-
-    Returns:
-        Raw audio bytes (MP3).
-    """
+    """Synthesize speech using the ElevenLabs REST API."""
     import httpx
 
     settings = get_settings()
@@ -132,14 +104,7 @@ def _synthesize_elevenlabs(text: str) -> bytes:
 
 
 def _synthesize_aws_polly(text: str) -> bytes:
-    """Synthesize speech using AWS Polly.
-
-    Args:
-        text: Text to synthesize.
-
-    Returns:
-        Raw audio bytes (MP3).
-    """
+    """Synthesize speech using AWS Polly."""
     import boto3
 
     polly = boto3.client("polly")

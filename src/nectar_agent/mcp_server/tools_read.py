@@ -21,12 +21,8 @@ from nectar_agent.models.domain import AssetType
 def get_asset_details(asset_id: str) -> dict:
     """Return static details (type, location, related assets) for one asset.
 
-    Args:
-        asset_id: Asset identifier, e.g. "CHILLER-01" or "AHU-02".
-
-    Returns:
-        A dict describing the asset, or a dict with an ``error`` key if
-        the asset ID is not recognized or the lookup fails unexpectedly.
+    Returns an ``error`` key instead if the asset ID isn't recognized or
+    the lookup fails unexpectedly.
     """
     try:
         asset = data.get_asset(asset_id)
@@ -38,15 +34,11 @@ def get_asset_details(asset_id: str) -> dict:
 
 
 def get_asset_status(asset_id: str) -> dict:
-    """Return the current operational status of one asset.
+    """Return ``{asset_id, status}`` for one asset.
 
-    Args:
-        asset_id: Asset identifier, e.g. "CHILLER-01".
-
-    Returns:
-        A dict with ``asset_id`` and ``status`` (one of "normal",
-        "warning", "fault", "offline", "maintenance"), or an ``error``
-        key if the asset is unknown or the lookup fails unexpectedly.
+    ``status`` is one of "normal", "warning", "fault", "offline",
+    "maintenance". Returns an ``error`` key if the asset is unknown or
+    the lookup fails unexpectedly.
     """
     try:
         asset = data.get_asset(asset_id)
@@ -60,15 +52,11 @@ def get_asset_status(asset_id: str) -> dict:
 def get_sensor_data(scope_id: str) -> dict:
     """Return the latest sensor readings for an asset or building.
 
-    Args:
-        scope_id: Asset ID (e.g. "AHU-02") or building name
-            (e.g. "Building A") to fetch readings for.
-
-    Returns:
-        A dict with ``scope_id`` and a ``readings`` list of
-        ``{sensor_id, metric, value, unit, timestamp}`` objects. The list
-        is empty if no readings are tracked for that scope. Returns an
-        ``error`` key instead if the lookup fails unexpectedly.
+    ``scope_id`` is an asset ID (e.g. "AHU-02") or building name (e.g.
+    "Building A"). Returns ``{scope_id, readings}`` where ``readings``
+    is a list of ``{sensor_id, metric, value, unit, timestamp}`` objects
+    - empty if none are tracked for that scope. Returns an ``error`` key
+    instead if the lookup fails unexpectedly.
     """
     try:
         readings = data.get_sensor_readings(scope_id)
@@ -83,13 +71,9 @@ def get_sensor_data(scope_id: str) -> dict:
 def get_energy_consumption(scope_id: str) -> dict:
     """Return trailing 24-hour energy consumption for an asset or building.
 
-    Args:
-        scope_id: Asset ID or building name, e.g. "Building A".
-
-    Returns:
-        A dict with consumption in kWh, the baseline, and the computed
-        percentage over baseline, or an ``error`` key if no energy data
-        is tracked for that scope or the lookup fails unexpectedly.
+    Includes consumption in kWh, the baseline, and the computed
+    percentage over baseline. Returns an ``error`` key if no energy data
+    is tracked for ``scope_id`` or the lookup fails unexpectedly.
     """
     try:
         energy = data.get_energy(scope_id)
@@ -110,14 +94,9 @@ def get_energy_consumption(scope_id: str) -> dict:
 def get_active_alerts(asset_id: str | None = None) -> dict:
     """Return currently active alerts, optionally scoped to one asset.
 
-    Args:
-        asset_id: If given, only alerts for this asset are returned.
-            If omitted, all active alerts facility-wide are returned.
-
-    Returns:
-        A dict with an ``alerts`` list of
-        ``{alert_id, asset_id, severity, message, raised_at}`` objects,
-        or an ``error`` key if the lookup fails unexpectedly.
+    If ``asset_id`` is omitted, all active alerts facility-wide are
+    returned. Result is ``{alerts}``, a list of ``{alert_id, asset_id,
+    severity, message, raised_at}`` objects.
     """
     try:
         alerts = data.get_alerts(asset_id=asset_id, active_only=True)
@@ -131,15 +110,7 @@ def get_asset_relationships(asset_id: str) -> dict:
 
     Used by the orchestrator to traverse from one asset to related ones
     during multi-step investigation, e.g. from a chiller to the AHUs it
-    serves.
-
-    Args:
-        asset_id: Asset identifier, e.g. "CHILLER-01".
-
-    Returns:
-        A dict with ``asset_id`` and ``related_asset_ids``, or an
-        ``error`` key if the asset is unknown or the lookup fails
-        unexpectedly.
+    serves. Result is ``{asset_id, related_asset_ids}``.
     """
     try:
         asset = data.get_asset(asset_id)
@@ -156,16 +127,8 @@ def find_assets_by_location(building: str, asset_type: str | None = None) -> dic
     This supplements the six tools named explicitly in the brief and is
     what lets the orchestrator resolve a natural-language location
     ("the office on the third floor" / "Building A") into concrete
-    asset IDs before calling the other tools.
-
-    Args:
-        building: Building name to search within, e.g. "Building A".
-        asset_type: Optional asset type filter, e.g. "ahu" or "chiller".
-
-    Returns:
-        A dict with a ``assets`` list of matching asset summaries, or an
-        ``error`` key if ``asset_type`` is unrecognized or the search
-        fails unexpectedly.
+    asset IDs before calling the other tools. Returns ``{assets}``, or
+    an ``error`` key if ``asset_type`` is unrecognized.
     """
     try:
         parsed_type: AssetType | None = None
