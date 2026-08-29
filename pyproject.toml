@@ -1,0 +1,13 @@
+[project]
+name = "nectar-voice-agent"
+version = "0.1.0"
+description = "Autonomous voice AI facility operations agent for Nectar's Intelligent Facilities Platform."
+requires-python = ">=3.11"
+readme = "README.md"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["src"]

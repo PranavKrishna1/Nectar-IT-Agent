@@ -1,0 +1,66 @@
+# Core agent framework.
+# Requires the current toolset-based MCP API: pydantic_ai.mcp.MCPToolset
+# (StdioTransport(...)) / Agent(toolsets=...) / result.output - the old
+# MCPServerStdio / Agent(mcp_servers=...) / agent.run_mcp_servers() /
+# result.data surface (pydantic-ai 0.0.x) does not support Gemini's
+# "thought_signature" tool-calling protocol and will 400 on any
+# multi-turn tool call (see agents/data_agent.py, agents/action_agent.py).
+pydantic-ai>=2.35.3
+pydantic>=2.10
+pydantic-settings>=2.6.1
+
+# MCP tool server. Left unpinned to a minor version so pip can resolve a
+# release compatible with pydantic-ai==0.0.49's own mcp/httpx constraints.
+fastmcp>=2.3.4
+
+# Vector database (RAG)
+pinecone>=5.4.2
+
+# LLM / embeddings provider. Required as a transitive dependency of
+# pydantic-ai regardless of which model provider you configure; only
+# actually called when LLM_MODEL_* are set to openai:* models or
+# EMBEDDING_PROVIDER=openai.
+openai>=1.67.0
+
+# --- Free-tier speech backends (the defaults) --------------------------
+# faster-whisper runs Whisper locally with no API key; edge-tts uses
+# Microsoft Edge's free voice service with no key or signup. Both are
+# only imported when their provider is selected, so you can drop these
+# two lines if you're using the hosted OpenAI/Deepgram/ElevenLabs paths.
+faster-whisper>=1.0.3
+edge-tts>=6.1.9
+
+# Live voice loop (microphone in / speaker out) - main.py's
+# process_voice_turn_live / `run_demo.py --live`. sounddevice captures
+# raw PCM from the default input device and plays decoded PCM back to
+# the default output device; miniaudio decodes the synthesized MP3 to
+# PCM in memory (no system ffmpeg needed - it bundles its own decoders).
+# NOTE: the more obvious playsound package is NOT used here - every
+# published version (1.0.0-1.3.0) fails to build from source under
+# pip's isolated build env with "OSError: could not get source code"
+# (a long-standing bug in its setup.py). Both packages below are
+# imported lazily inside voice/audio_utils.py, so they're only needed
+# if you actually run the live loop.
+sounddevice>=0.5.1
+miniaudio>=1.60
+
+# Web scraping (nectarit.com knowledge-base source)
+httpx>=0.28.1
+beautifulsoup4>=4.12.3
+
+# Optional: alternate speech provider (AWS Polly TTS / Transcribe)
+boto3>=1.35.68
+
+# Testing
+pytest>=8.3.3
+pytest-asyncio>=0.24.0
+
+# Environment loading
+python-dotenv>=1.1.0
+
+# No pin needed: the opentelemetry._events workaround only applied to
+# pydantic-ai==0.0.49. Current pydantic-ai resolves a compatible
+# opentelemetry-api/-sdk release on its own.
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-semantic-conventions
